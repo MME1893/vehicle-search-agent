@@ -1,0 +1,31 @@
+API_RANK = {
+    "SA": 1,
+    "SB": 2,
+    "SC": 3,
+    "SD": 4,
+    "SE": 5,
+    "SF": 6,
+    "SG": 7,
+    "SH": 8,
+    "SJ": 9,
+    "SL": 10,
+    "SM": 11,
+    "SN": 12,
+    "SN PLUS": 13,
+    "SP": 14,
+    "SQ": 15,
+}
+JOB_STATUSES = {
+    "PENDING",
+    "RUNNING",
+    "RESOLVING_SPEC",
+    "MATCHING",
+    "VALIDATING",
+    "COMPLETED",
+    "NEEDS_REVIEW",
+    "FAILED",
+}
+SPEC_STATUSES = {"PENDING", "VERIFIED", "NEEDS_REVIEW", "REJECTED"}
+COMPATIBILITY_TYPES = {"RECOMMENDED", "COMPATIBLE", "CONDITIONAL"}
+REVIEW_STATUSES = {"PENDING", "APPROVED", "REJECTED", "NEEDS_REVIEW"}
+CREATED_BY = {"SYSTEM", "AGENT", "ADMIN"}

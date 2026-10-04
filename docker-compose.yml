@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-engine_oil}
+      POSTGRES_USER: ${POSTGRES_USER:-oil}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-oil}
+    ports: ["5432:5432"]
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+
+    volumes:
+      - ./backend:/app
+    
+    env_file:
+    - ./.env
+
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-oil}:${POSTGRES_PASSWORD:-oil}@postgres:5432/${POSTGRES_DB:-engine_oil}
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+
+      OPENROUTER_TIMEOUT_SECONDS: ${OPENROUTER_TIMEOUT_SECONDS:-90}
+      OPENROUTER_MAX_RETRIES: ${OPENROUTER_MAX_RETRIES:-2}
+
+      OPENROUTER_APP_NAME: ${OPENROUTER_APP_NAME:-SnappCarFix}
+      OPENROUTER_APP_URL: ${OPENROUTER_APP_URL:-}
+
+      RESEARCH_MIN_CONFIDENCE: ${RESEARCH_MIN_CONFIDENCE:-0.80}
+      RESEARCH_WEB_SEARCH_ENABLED: ${RESEARCH_WEB_SEARCH_ENABLED:-true}
+
+    ports:
+      - "8000:8000"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes: {postgres_data: {}}

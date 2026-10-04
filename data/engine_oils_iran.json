@@ -1,0 +1,427 @@
+{
+  "engine_oils": [
+    {
+      "id": 1,
+      "brand": "Behran",
+      "name": "Super Rana Plus 5W-30",
+      "sae_viscosity": "5W-30",
+      "api_spec": "SN Plus",
+      "acea_spec": null,
+      "base_type": "Full Synthetic",
+      "oem_approvals": [
+        "GM dexos1 Gen2"
+      ]
+    },
+    {
+      "id": 2,
+      "brand": "Behran",
+      "name": "Super Rana Plus 10W-40",
+      "sae_viscosity": "10W-40",
+      "api_spec": "SN Plus",
+      "acea_spec": "A3/B4",
+      "base_type": "Full Synthetic",
+      "oem_approvals": [
+        "PSA B71 2300"
+      ]
+    },
+    {
+      "id": 3,
+      "brand": "Behran",
+      "name": "Super Rana 5W-40",
+      "sae_viscosity": "5W-40",
+      "api_spec": "SN/CF",
+      "acea_spec": null,
+      "base_type": "Full Synthetic",
+      "oem_approvals": []
+    },
+    {
+      "id": 4,
+      "brand": "Behran",
+      "name": "Rana 10W-40",
+      "sae_viscosity": "10W-40",
+      "api_spec": "SM/CF",
+      "acea_spec": null,
+      "base_type": "Semi Synthetic",
+      "oem_approvals": []
+    },
+    {
+      "id": 5,
+      "brand": "Behran",
+      "name": "Super Pishtaz 5W-40",
+      "sae_viscosity": "5W-40",
+      "api_spec": "SL/CF",
+      "acea_spec": "A3-98/B3-98",
+      "base_type": "Full Synthetic",
+      "oem_approvals": [
+        "MB 229.1"
+      ]
+    },
+    {
+      "id": 6,
+      "brand": "Behran",
+      "name": "Super Pishtaz 10W-40",
+      "sae_viscosity": "10W-40",
+      "api_spec": "SL/CF",
+      "acea_spec": "A3-98/B3-98",
+      "base_type": "Semi Synthetic",
+      "oem_approvals": [
+        "MB 229.1"
+      ]
+    },
+    {
+      "id": 7,
+      "brand": "Behran",
+      "name": "Super Pishtaz 20W-50",
+      "sae_viscosity": "20W-50",
+      "api_spec": "SL/CF",
+      "acea_spec": "A3-98/B3-98",
+      "base_type": "Mineral",
+      "oem_approvals": [
+        "MB 229.1"
+      ]
+    },
+    {
+      "id": 8,
+      "brand": "Iranol",
+      "name": "Ronia Plus 5W-30",
+      "sae_viscosity": "5W-30",
+      "api_spec": "SN Plus",
+      "acea_spec": null,
+      "base_type": "Full Synthetic",
+      "oem_approvals": []
+    },
+    {
+      "id": 9,
+      "brand": "Iranol",
+      "name": "Ronia 10W-40",
+      "sae_viscosity": "10W-40",
+      "api_spec": "SN",
+      "acea_spec": null,
+      "base_type": "Full Synthetic",
+      "oem_approvals": []
+    },
+    {
+      "id": 10,
+      "brand": "Iranol",
+      "name": "Racing 10W-40",
+      "sae_viscosity": "10W-40",
+      "api_spec": "SL/CF",
+      "acea_spec": null,
+      "base_type": "Semi Synthetic",
+      "oem_approvals": []
+    },
+    {
+      "id": 11,
+      "brand": "Iranol",
+      "name": "16000 10W-40",
+      "sae_viscosity": "10W-40",
+      "api_spec": "SL/CF",
+      "acea_spec": "A3-02/B3-98",
+      "base_type": "Semi Synthetic",
+      "oem_approvals": [
+        "MB 229.1",
+        "VW 500.00",
+        "VW 501.00",
+        "VW 505.00"
+      ]
+    },
+    {
+      "id": 12,
+      "brand": "Speedy",
+      "name": "Super Platinum 5W-30",
+      "sae_viscosity": "5W-30",
+      "api_spec": "SN",
+      "acea_spec": null,
+      "base_type": "Full Synthetic",
+      "oem_approvals": []
+    },
+    {
+      "id": 13,
+      "brand": "Speedy",
+      "name": "Super Platinum 5W-40",
+      "sae_viscosity": "5W-40",
+      "api_spec": "SN",
+      "acea_spec": null,
+      "base_type": "Full Synthetic",
+      "oem_approvals": []
+    },
+    {
+      "id": 14,
+      "brand": "Speedy",
+      "name": "Super Power 10W-40",
+      "sae_viscosity": "10W-40",
+      "api_spec": "SL",
+      "acea_spec": null,
+      "base_type": "Semi Synthetic",
+      "oem_approvals": []
+    },
+    {
+      "id": 15,
+      "brand": "Speedy",
+      "name": "Super Power 20W-50",
+      "sae_viscosity": "20W-50",
+      "api_spec": "SL",
+      "acea_spec": null,
+      "base_type": "Mineral",
+      "oem_approvals": []
+    },
+    {
+      "id": 16,
+      "brand": "Pars Oil",
+      "name": "Super Paya 10W-40",
+      "sae_viscosity": "10W-40",
+      "api_spec": "SL",
+      "acea_spec": null,
+      "base_type": "Semi Synthetic",
+      "oem_approvals": []
+    },
+    {
+      "id": 17,
+      "brand": "Pars Oil",
+      "name": "Super Paya Plus 10W-40",
+      "sae_viscosity": "10W-40",
+      "api_spec": "SL",
+      "acea_spec": "A3/B3",
+      "base_type": "Semi Synthetic",
+      "oem_approvals": []
+    },
+    {
+      "id": 18,
+      "brand": "Pars Oil",
+      "name": "Super Paya 20W-50",
+      "sae_viscosity": "20W-50",
+      "api_spec": "SL",
+      "acea_spec": "A3-04/B3-04",
+      "base_type": "Semi Synthetic",
+      "oem_approvals": [
+        "MB 229.1",
+        "VW 505.00"
+      ]
+    },
+    {
+      "id": 19,
+      "brand": "TotalEnergies",
+      "name": "Quartz 7000 10W-40",
+      "sae_viscosity": "10W-40",
+      "api_spec": "SN/CF",
+      "acea_spec": "A3/B4",
+      "base_type": "Semi Synthetic",
+      "oem_approvals": [
+        "PSA B71 2300",
+        "VW 501.01",
+        "VW 505.00",
+        "Renault RN0700",
+        "Renault RN0710",
+        "MB 229.3",
+        "Fiat 9.55535-G2"
+      ]
+    },
+    {
+      "id": 20,
+      "brand": "TotalEnergies",
+      "name": "Quartz 9000 5W-40",
+      "sae_viscosity": "5W-40",
+      "api_spec": "SN/CF",
+      "acea_spec": "A3/B4",
+      "base_type": "Full Synthetic",
+      "oem_approvals": [
+        "BMW Longlife-01",
+        "MB 229.5",
+        "Porsche A40",
+        "PSA B71 2296",
+        "VW 502.00",
+        "VW 505.00"
+      ]
+    },
+    {
+      "id": 21,
+      "brand": "TotalEnergies",
+      "name": "Quartz 9000 Future GF6 5W-30",
+      "sae_viscosity": "5W-30",
+      "api_spec": "SP",
+      "acea_spec": null,
+      "base_type": "Full Synthetic",
+      "oem_approvals": []
+    },
+    {
+      "id": 22,
+      "brand": "ELF",
+      "name": "Evolution 900 SXR 5W-40",
+      "sae_viscosity": "5W-40",
+      "api_spec": "SP",
+      "acea_spec": "A3/B4",
+      "base_type": "Full Synthetic",
+      "oem_approvals": [
+        "MB 229.5",
+        "Renault RN0700",
+        "Renault RN0710",
+        "Stellantis FPW9.55535/10",
+        "VW 502.00",
+        "VW 505.00"
+      ]
+    },
+    {
+      "id": 23,
+      "brand": "ELF",
+      "name": "Evolution 700 STI 10W-40",
+      "sae_viscosity": "10W-40",
+      "api_spec": "SN/CF",
+      "acea_spec": "A3/B4",
+      "base_type": "Semi Synthetic",
+      "oem_approvals": [
+        "Renault RN0700",
+        "Renault RN0710",
+        "Stellantis FPW9.55535/04",
+        "VW 501.01",
+        "VW 505.00",
+        "MB 229.3"
+      ]
+    },
+    {
+      "id": 24,
+      "brand": "Shell",
+      "name": "Helix Ultra 5W-40",
+      "sae_viscosity": "5W-40",
+      "api_spec": "SN/CF",
+      "acea_spec": "A3/B3, A3/B4",
+      "base_type": "Full Synthetic",
+      "oem_approvals": [
+        "BMW Longlife-01",
+        "MB 229.5",
+        "MB 226.5",
+        "VW 502.00",
+        "VW 505.00",
+        "Porsche A40",
+        "Renault RN0700",
+        "Renault RN0710",
+        "PSA B71 2296"
+      ]
+    },
+    {
+      "id": 25,
+      "brand": "Shell",
+      "name": "Helix HX7 10W-40",
+      "sae_viscosity": "10W-40",
+      "api_spec": "SN/CF",
+      "acea_spec": "A3/B3, A3/B4",
+      "base_type": "Semi Synthetic",
+      "oem_approvals": [
+        "MB 229.3",
+        "VW 502.00",
+        "VW 505.00",
+        "Renault RN0700",
+        "Renault RN0710",
+        "Fiat 9.55535-G2"
+      ]
+    },
+    {
+      "id": 26,
+      "brand": "Mobil",
+      "name": "Mobil 1 FS 5W-40",
+      "sae_viscosity": "5W-40",
+      "api_spec": "SQ/SP/SN Plus/SN",
+      "acea_spec": "A3/B4",
+      "base_type": "Full Synthetic",
+      "oem_approvals": [
+        "BMW Longlife-01",
+        "MB 229.3",
+        "MB 229.5",
+        "Porsche A40",
+        "Renault RN0700",
+        "Renault RN0710",
+        "VW 502.00",
+        "VW 505.00"
+      ]
+    },
+    {
+      "id": 27,
+      "brand": "Mobil",
+      "name": "Mobil 1 Advanced Fuel Economy 0W-20",
+      "sae_viscosity": "0W-20",
+      "api_spec": "SQ/SP",
+      "acea_spec": null,
+      "base_type": "Full Synthetic",
+      "oem_approvals": [
+        "GM dexos1 Gen3",
+        "Ford WSS-M2C947-A",
+        "Ford WSS-M2C947-B1",
+        "Ford WSS-M2C962-A1",
+        "GM 6094M"
+      ]
+    },
+    {
+      "id": 28,
+      "brand": "Castrol",
+      "name": "EDGE 5W-40",
+      "sae_viscosity": "5W-40",
+      "api_spec": "SN/CF",
+      "acea_spec": "C3",
+      "base_type": "Full Synthetic",
+      "oem_approvals": [
+        "MB 226.5",
+        "MB 229.31",
+        "MB 229.51",
+        "Opel OV 040 1547-D40",
+        "Renault RN0700",
+        "Renault RN0710",
+        "VW 505.00",
+        "VW 505.01"
+      ]
+    },
+    {
+      "id": 29,
+      "brand": "Castrol",
+      "name": "GTX 20W-50",
+      "sae_viscosity": "20W-50",
+      "api_spec": "SL",
+      "acea_spec": null,
+      "base_type": "Mineral",
+      "oem_approvals": []
+    },
+    {
+      "id": 30,
+      "brand": "Liqui Moly",
+      "name": "Leichtlauf High Tech 5W-40",
+      "sae_viscosity": "5W-40",
+      "api_spec": "SP",
+      "acea_spec": "A3/B4",
+      "base_type": "Full Synthetic",
+      "oem_approvals": [
+        "BMW Longlife-01",
+        "MB 229.5",
+        "PSA B71 2296",
+        "Porsche A40",
+        "Renault RN0700",
+        "Renault RN0710",
+        "VW 502.00",
+        "VW 505.00"
+      ]
+    },
+    {
+      "id": 31,
+      "brand": "Liqui Moly",
+      "name": "Special Tec AA 5W-30",
+      "sae_viscosity": "5W-30",
+      "api_spec": "SP",
+      "acea_spec": null,
+      "base_type": "Full Synthetic",
+      "oem_approvals": []
+    },
+    {
+      "id": 32,
+      "brand": "Motul",
+      "name": "8100 X-Cess 5W-40",
+      "sae_viscosity": "5W-40",
+      "api_spec": "SN",
+      "acea_spec": "A3/B4",
+      "base_type": "Full Synthetic",
+      "oem_approvals": [
+        "MB 229.5",
+        "MB 226.5",
+        "Porsche A40",
+        "VW 502.00",
+        "VW 505.00"
+      ]
+    }
+  ]
+}
