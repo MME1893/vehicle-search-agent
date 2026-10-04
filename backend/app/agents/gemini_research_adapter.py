@@ -16,6 +16,7 @@ from app.agents.prompts import (
 from app.agents.schemas import (
     CatalogResearchResult,
     EngineOilResearchResult,
+    ResearchExecution,
 )
 from app.models import EngineOil, Vehicle
 
@@ -64,7 +65,7 @@ class GeminiResearchAdapter:
 
     async def research_vehicle_oil_spec(
         self, vehicle: Vehicle
-    ) -> EngineOilResearchResult:
+    ) -> ResearchExecution:
         async with self.client.research_budget():
             response = await self.client.generate_grounded(
                 build_vehicle_research_prompt(vehicle)
@@ -79,11 +80,11 @@ class GeminiResearchAdapter:
             )
             result = self._parse_structured(raw)
             self._validate_identity(vehicle, result)
-            return result
+            return self._execution(result)
 
     async def research_vehicle_with_catalog(
         self, vehicle: Vehicle, oils: list[EngineOil]
-    ) -> CatalogResearchResult:
+    ) -> ResearchExecution:
         async with self.client.research_budget():
             response = await self.client.generate_grounded(
                 build_catalog_research_prompt(vehicle, oils)
@@ -110,4 +111,29 @@ class GeminiResearchAdapter:
                 raise GeminiProviderError(
                     "Gemini returned duplicate engine_oil_id values"
                 )
-            return result
+            return self._execution(result.research, result.matches)
+
+    def _execution(self, research, matches=None) -> ResearchExecution:
+        grounding = self.client.last_grounding
+        return ResearchExecution(
+            research=research,
+            matches=list(matches or []),
+            provider=self.provider_name,
+            model=self.client.model,
+            raw_research_text=self.client.last_research_text,
+            search_queries=list(grounding.queries),
+            grounding_sources=[
+                {"title": source.title, "url": source.uri}
+                for source in grounding.sources
+            ],
+            stage1_duration_ms=(
+                round(self.client.last_grounded_duration * 1000)
+                if self.client.last_grounded_duration is not None
+                else None
+            ),
+            stage2_duration_ms=(
+                round(self.client.last_extraction_duration * 1000)
+                if self.client.last_extraction_duration is not None
+                else None
+            ),
+        )

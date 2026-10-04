@@ -6,7 +6,7 @@ from app.agents.client import OpenRouterClient
 from app.agents.errors import ResearchProviderError
 from app.agents.parser import ResearchResultParseError, parse_research_result
 from app.agents.prompts import REPAIR_PROMPT, SYSTEM_PROMPT
-from app.agents.schemas import EngineOilResearchResult
+from app.agents.schemas import ResearchExecution
 from app.core.config import Settings
 from app.models import Vehicle
 
@@ -51,7 +51,7 @@ class ResearchAgent:
 
     async def research_vehicle_oil_spec(
         self, vehicle: Vehicle
-    ) -> EngineOilResearchResult:
+    ) -> ResearchExecution:
         logger.info("Research started vehicle_id=%s", vehicle.id)
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -85,4 +85,9 @@ class ResearchAgent:
             len(result.sources),
             result.confidence,
         )
-        return result
+        return ResearchExecution(
+            research=result,
+            provider=self.provider_name,
+            model=getattr(self.client, "model", None),
+            raw_research_text=raw,
+        )

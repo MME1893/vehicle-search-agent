@@ -23,5 +23,6 @@ def run_vehicle_research(
     job = AgentJobRepository(db).create(
         {"vehicle_id": vehicle_id, "status": "PENDING", "agent_version": "research-v1"}
     )
+    db.commit()
     background_tasks.add_task(run_agent_job, job.id)
     return job

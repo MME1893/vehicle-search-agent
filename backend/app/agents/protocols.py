@@ -1,6 +1,6 @@
 from typing import Protocol, runtime_checkable
 
-from app.agents.schemas import CatalogResearchResult, EngineOilResearchResult
+from app.agents.schemas import ResearchExecution
 from app.models import EngineOil, Vehicle
 
 
@@ -11,7 +11,7 @@ class ResearchProvider(Protocol):
     async def research_vehicle_oil_spec(
         self,
         vehicle: Vehicle,
-    ) -> EngineOilResearchResult: ...
+    ) -> ResearchExecution: ...
 
 
 @runtime_checkable
@@ -20,4 +20,4 @@ class CatalogResearchProvider(ResearchProvider, Protocol):
         self,
         vehicle: Vehicle,
         oils: list[EngineOil],
-    ) -> CatalogResearchResult: ...
+    ) -> ResearchExecution: ...

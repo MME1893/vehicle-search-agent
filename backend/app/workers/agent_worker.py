@@ -29,11 +29,13 @@ class AgentWorker:
             return None
 
         self.jobs.mark_running(job)
+        self._commit_job_state()
         logger.info("Agent job started job_id=%s vehicle_id=%s", job.id, job.vehicle_id)
 
         def update_step(step: str) -> None:
             if getattr(job, "current_step", None) != step:
                 self.jobs.update_step(job, step)
+                self._commit_job_state()
 
         try:
             logger.info(
@@ -41,23 +43,41 @@ class AgentWorker:
                 job.id,
                 job.vehicle_id,
             )
-            await self.research_service.execute_vehicle_research(
+            outcome = await self.research_service.execute_vehicle_research(
                 job.vehicle_id,
                 persist=True,
                 progress_callback=update_step,
             )
-            completed = self.jobs.mark_completed(job)
+            research_run = getattr(outcome, "research_run", None)
+            job.research_run_id = research_run.id if research_run else None
+            evaluation = getattr(outcome, "evaluation", None)
+            if evaluation is None or evaluation.accepted:
+                completed = self.jobs.mark_completed(job)
+            elif evaluation.needs_review:
+                completed = self.jobs.mark_needs_review(job, evaluation.reason)
+            else:
+                completed = self.jobs.mark_failed(job, evaluation.reason)
+            self._commit_job_state()
             logger.info("Agent job completed job_id=%s", job.id)
             return completed
         except (ResearchProviderError, LookupError) as exc:
             logger.warning("Agent job failed job_id=%s error=%s", job.id, exc)
             self._rollback()
-            return self.jobs.mark_failed(job, str(exc))
+            failed = self.jobs.mark_failed(job, str(exc))
+            self._commit_job_state()
+            return failed
         except Exception as exc:
             logger.exception("Unexpected agent job failure job_id=%s", job.id)
             self._rollback()
             message = str(exc) or "unexpected internal research error"
-            return self.jobs.mark_failed(job, message)
+            failed = self.jobs.mark_failed(job, message)
+            self._commit_job_state()
+            return failed
+
+    def _commit_job_state(self) -> None:
+        db = getattr(self.jobs, "db", None)
+        if db is not None:
+            db.commit()
 
     def _rollback(self) -> None:
         db = getattr(self.jobs, "db", None)
@@ -69,9 +89,10 @@ async def run_agent_job(job_id: int | None = None):
     """Background-task entry point with its own database session."""
 
     logger.info("Agent job background task started job_id=%s", job_id)
-    db = SessionLocal()
+    job_db = SessionLocal()
+    research_db = SessionLocal()
     provider = None
-    jobs = AgentJobRepository(db)
+    jobs = AgentJobRepository(job_db)
     try:
         settings = get_settings()
         logger.info(
@@ -85,11 +106,12 @@ async def run_agent_job(job_id: int | None = None):
             job_id,
             getattr(provider, "provider_name", type(provider).__name__),
         )
-        service = ResearchService(db, provider, settings)
+        service = ResearchService(research_db, provider, settings)
         return await AgentWorker(jobs, service).run_once(job_id)
     except Exception as exc:
         logger.exception("Unable to execute agent job job_id=%s", job_id)
-        db.rollback()
+        research_db.rollback()
+        job_db.rollback()
         job = (
             jobs.get_by_id(job_id)
             if job_id is not None
@@ -98,6 +120,7 @@ async def run_agent_job(job_id: int | None = None):
         if job is not None and job.status in {"PENDING", "RUNNING"}:
             if job.status == "PENDING":
                 jobs.mark_running(job)
+                job_db.commit()
                 logger.info(
                     "Agent job started job_id=%s vehicle_id=%s",
                     job.id,
@@ -105,6 +128,7 @@ async def run_agent_job(job_id: int | None = None):
                 )
             message = str(exc) or "agent worker initialization failed"
             failed = jobs.mark_failed(job, message)
+            job_db.commit()
             logger.error("Agent job failed job_id=%s error=%s", job.id, message)
             return failed
         return None
@@ -119,4 +143,5 @@ async def run_agent_job(job_id: int | None = None):
                 logger.exception(
                     "Unable to close research provider job_id=%s", job_id
                 )
-        db.close()
+        research_db.close()
+        job_db.close()

@@ -1,6 +1,15 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -9,6 +18,16 @@ from app.db.base import Base
 
 class ResearchRun(Base):
     __tablename__ = "research_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "research_status IN ('FOUND','INSUFFICIENT')",
+            name="ck_research_status",
+        ),
+        CheckConstraint(
+            "evaluation_status IN ('ACCEPTED','NEEDS_REVIEW','REJECTED')",
+            name="ck_research_evaluation_status",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     vehicle_id: Mapped[int] = mapped_column(
@@ -17,7 +36,9 @@ class ResearchRun(Base):
     provider: Mapped[str] = mapped_column(String(50), nullable=False)
     model: Mapped[str | None] = mapped_column(String(180))
     matching_strategy: Mapped[str] = mapped_column(String(50), nullable=False)
-    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    research_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    evaluation_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    evaluation_reason: Mapped[str] = mapped_column(String(2000), nullable=False)
     raw_research_text: Mapped[str | None] = mapped_column(Text)
     structured_result: Mapped[dict | None] = mapped_column(
         JSON().with_variant(JSONB, "postgresql")

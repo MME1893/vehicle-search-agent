@@ -318,7 +318,7 @@ def test_catalog_serialization_has_only_contract_fields():
         name="Super Rana Plus",
         sae_viscosity="5W-30",
         api_spec="SN Plus",
-        acea_spec=None,
+        acea_specs=[],
         base_type="Full Synthetic",
         oem_approvals=["GM dexos1 Gen2"],
     )
@@ -329,7 +329,7 @@ def test_catalog_serialization_has_only_contract_fields():
             "name": "Super Rana Plus",
             "sae_viscosity": "5W-30",
             "api_spec": "SN Plus",
-            "acea_spec": None,
+            "acea_specs": [],
             "base_type": "Full Synthetic",
             "oem_approvals": ["GM dexos1 Gen2"],
         }
@@ -440,103 +440,3 @@ def test_all_adapters_satisfy_runtime_protocol_and_factory_selection():
 def test_catalog_strategy_rejects_non_gemini_provider():
     with pytest.raises(ResearchProviderConfigurationError, match="only by Gemini"):
         Settings(research_provider="openrouter", matching_strategy="provider_catalog")
-
-
-# import asyncio
-# import os
-
-# from dotenv import load_dotenv
-# from google import genai
-# from google.genai import types
-
-
-# load_dotenv()
-
-
-# async def main() -> None:
-#     api_key = "AIzaSyA62voeKb6dxTJ3CehwUvpdUr9fbaMq-pc"
-#     model = "gemini-2.5-flash"
-
-#     client = genai.Client(api_key=api_key)
-
-#     prompt = """
-# Research the following vehicle using current web sources.
-
-# Vehicle:
-# - Manufacturer: Peugeot
-# - Model: 206
-# - Trim: Type 5
-# - Engine: TU5
-# - Fuel: Gasoline
-# - Production years: 2003-2021
-
-# Find reliable information about:
-
-# 1. Engine displacement
-# 2. Recommended SAE engine oil viscosity
-# 3. Recommended API specification
-# 4. Recommended ACEA specification if available
-# 5. Engine oil capacity with filter
-# 6. OEM/manufacturer oil recommendations
-# 7. Important differences by model year if applicable
-
-# Use Google Search.
-# Prefer manufacturer documents, service manuals,
-# reputable oil manufacturers, and technical sources.
-
-# Do not guess unavailable specifications.
-# Clearly distinguish confirmed facts from uncertain information.
-# """
-
-#     try:
-#         response = await client.aio.models.generate_content(
-#             model=model,
-#             contents=prompt,
-#             config=types.GenerateContentConfig(
-#                 tools=[{"google_search": {}}],
-#                 temperature=0.1,
-#                 max_output_tokens=8192,
-#             ),
-#         )
-#     finally:
-#         await client.aio.aclose()
-
-#     print("\n" + "=" * 80)
-#     print(f"MODEL: {model}")
-#     print("=" * 80)
-
-#     print("\nANSWER:\n")
-#     print(response.text)
-
-#     if not response.candidates:
-#         return
-
-#     metadata = response.candidates[0].grounding_metadata
-
-#     if not metadata:
-#         print("\n[!] No grounding metadata returned.")
-#         return
-
-#     print("\n" + "=" * 80)
-#     print("GOOGLE SEARCH QUERIES")
-#     print("=" * 80)
-
-#     for query in metadata.web_search_queries or []:
-#         print(f"- {query}")
-
-#     print("\n" + "=" * 80)
-#     print("SOURCES")
-#     print("=" * 80)
-
-#     for index, chunk in enumerate(metadata.grounding_chunks or [], start=1):
-#         web = getattr(chunk, "web", None)
-
-#         if not web:
-#             continue
-
-#         print(f"\n[{index}] {web.title}")
-#         print(web.uri)
-
-
-# if __name__ == "__main__":
-#     asyncio.run(main())

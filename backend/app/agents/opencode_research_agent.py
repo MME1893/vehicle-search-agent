@@ -5,7 +5,7 @@ from app.agents.opencode_client import OpenCodeClient
 from app.agents.parser import ResearchResultParseError, parse_research_result
 from app.agents.prompts import build_opencode_vehicle_prompt
 from app.agents.research_agent import ResearchExecutionError
-from app.agents.schemas import EngineOilResearchResult
+from app.agents.schemas import ResearchExecution
 from app.models import Vehicle
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ class OpenCodeResearchAgent:
 
     async def research_vehicle_oil_spec(
         self, vehicle: Vehicle
-    ) -> EngineOilResearchResult:
+    ) -> ResearchExecution:
         logger.info("[OpenCode] Vehicle: %s", vehicle.id)
         raw = await self.client.run(
             self.build_vehicle_prompt(vehicle), vehicle_id=vehicle.id
@@ -59,4 +59,9 @@ class OpenCodeResearchAgent:
             len(result.sources),
             result.confidence,
         )
-        return result
+        return ResearchExecution(
+            research=result,
+            provider=self.provider_name,
+            model=self.client.model,
+            raw_research_text=raw,
+        )

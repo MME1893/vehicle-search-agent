@@ -1,4 +1,5 @@
 from sqlalchemy import select
+
 from app.models import Vehicle
 from app.repositories.base import Repository
 

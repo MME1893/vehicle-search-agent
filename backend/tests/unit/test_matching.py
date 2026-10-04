@@ -1,6 +1,7 @@
 import pytest
 
-from app.models import EngineOil, EngineSpec
+from app.domain.oil_requirement import OilRequirement
+from app.models import EngineOil
 from app.services.matching.matcher import DeterministicMatcher
 from app.services.matching.rules import (
     api_satisfies,
@@ -10,7 +11,7 @@ from app.services.matching.rules import (
 
 
 def test_recommended_match_and_cap():
-    spec = EngineSpec(
+    spec = OilRequirement(
         engine_code="TU5",
         recommended_sae=["5W-40"],
         alternative_sae=[],
@@ -18,14 +19,13 @@ def test_recommended_match_and_cap():
         acea_specs=["A3/B4"],
         oem_approvals=["VW 502 00"],
         confidence=0.9,
-        status="VERIFIED",
     )
     oil = EngineOil(
         brand="B",
         name="N",
         sae_viscosity="5W-40",
         api_spec="SP",
-        acea_spec="A3/B4",
+        acea_specs=["A3/B4"],
         oem_approvals=["VW 502 00"],
     )
     candidate = DeterministicMatcher().score(spec, oil)
@@ -33,7 +33,7 @@ def test_recommended_match_and_cap():
 
 
 def test_alternative_and_invalid_sae():
-    spec = EngineSpec(
+    spec = OilRequirement(
         engine_code="E",
         recommended_sae=[],
         alternative_sae=["10W-40"],
@@ -41,7 +41,6 @@ def test_alternative_and_invalid_sae():
         acea_specs=[],
         oem_approvals=[],
         confidence=0,
-        status="PENDING",
     )
     matcher = DeterministicMatcher()
     assert (
@@ -102,7 +101,7 @@ def test_compound_api_satisfaction(actual, minimum, expected):
 
 
 def test_minimum_api_is_a_hard_requirement():
-    spec = EngineSpec(
+    spec = OilRequirement(
         engine_code="TU5",
         recommended_sae=["5W-40"],
         alternative_sae=[],
@@ -110,7 +109,6 @@ def test_minimum_api_is_a_hard_requirement():
         acea_specs=[],
         oem_approvals=[],
         confidence=0.9,
-        status="VERIFIED",
     )
     matcher = DeterministicMatcher()
     insufficient = EngineOil(
@@ -134,7 +132,7 @@ def test_minimum_api_is_a_hard_requirement():
 
 @pytest.mark.parametrize("minimum_api", ["API SL", "API: SL"])
 def test_formatted_minimum_api_matches_higher_ranked_oil(minimum_api):
-    spec = EngineSpec(
+    spec = OilRequirement(
         engine_code="TU5",
         recommended_sae=["5W-40"],
         alternative_sae=[],
@@ -142,7 +140,6 @@ def test_formatted_minimum_api_matches_higher_ranked_oil(minimum_api):
         acea_specs=[],
         oem_approvals=[],
         confidence=0.9,
-        status="VERIFIED",
     )
     oil = EngineOil(
         brand="B",
@@ -166,7 +163,7 @@ def _score_formatted_values(
     oil_oem="VW 502 00",
     required_oem="VW 502 00",
 ):
-    spec = EngineSpec(
+    spec = OilRequirement(
         engine_code="E",
         recommended_sae=[required_sae],
         alternative_sae=[],
@@ -174,14 +171,13 @@ def _score_formatted_values(
         acea_specs=[required_acea],
         oem_approvals=[required_oem],
         confidence=0.9,
-        status="VERIFIED",
     )
     oil = EngineOil(
         brand="B",
         name="N",
         sae_viscosity=oil_sae,
         api_spec=oil_api,
-        acea_spec=oil_acea,
+        acea_specs=[oil_acea],
         oem_approvals=[oil_oem],
     )
     return DeterministicMatcher().score(spec, oil)

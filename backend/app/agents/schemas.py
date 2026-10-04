@@ -1,12 +1,10 @@
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
-class ResearchStatus(str, Enum):
-    FOUND = "FOUND"
-    INSUFFICIENT = "INSUFFICIENT"
+from app.domain.enums import ResearchStatus
 
 
 class SourceType(str, Enum):
@@ -31,7 +29,7 @@ class ResearchedOilProduct(BaseModel):
     name: str
     sae_viscosity: str
     api_spec: str | None = None
-    acea_spec: str | None = None
+    acea_specs: list[str] = Field(default_factory=list)
     base_type: str | None = None
     oem_approvals: list[str] = Field(default_factory=list)
     recommendation_reason: str | None = None
@@ -70,3 +68,20 @@ class ProviderOilMatch(BaseModel):
 class CatalogResearchResult(BaseModel):
     research: EngineOilResearchResult
     matches: list[ProviderOilMatch] = Field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ResearchExecution:
+    research: EngineOilResearchResult
+    matches: list[ProviderOilMatch] = field(default_factory=list)
+    provider: str = "unknown"
+    model: str | None = None
+    raw_research_text: str | None = None
+    search_queries: list[str] = field(default_factory=list)
+    grounding_sources: list[dict] = field(default_factory=list)
+    stage1_duration_ms: int | None = None
+    stage2_duration_ms: int | None = None
+
+    def __getattr__(self, name):
+        """Delegate research fields for adapters migrating to this explicit envelope."""
+        return getattr(self.research, name)

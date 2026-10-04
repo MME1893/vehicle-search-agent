@@ -45,14 +45,11 @@ class VehicleResearchWorker:
 
     async def process(self, vehicle_id: int) -> str:
         try:
-            outcome = await self.service.research_vehicle(vehicle_id)
+            outcome = await self.service.execute_vehicle_research(vehicle_id, persist=True)
             if outcome.evaluation.needs_review:
-                self.service.persist_research_run(outcome)
                 print(f"vehicle_id={vehicle_id} status=NEEDS_REVIEW", flush=True)
                 return "needs_review"
-            self.service.persist_engine_spec(outcome)
-            self.service.find_candidates(outcome)
-            saved = self.service.persist_compatibilities(outcome)
+            saved = len(outcome.compatibility_ids)
             print(
                 f"vehicle_id={vehicle_id} status=COMPLETED compatibilities={saved}",
                 flush=True,

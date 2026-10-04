@@ -60,7 +60,7 @@ Return JSON only, with no Markdown or prose outside JSON, matching this shape:
   }],
   "recommended_products": [{
     "brand": "string", "name": "string", "sae_viscosity": "string",
-    "api_spec": "string or null", "acea_spec": "string or null",
+    "api_spec": "string or null", "acea_specs": ["string"],
     "base_type": "string or null", "oem_approvals": ["string"],
     "recommendation_reason": "string or null", "source_urls": ["https://..."]
   }],
@@ -180,7 +180,7 @@ def serialize_oil_catalog(oils: list["EngineOil"]) -> list[dict]:
             "name": oil.name,
             "sae_viscosity": oil.sae_viscosity,
             "api_spec": oil.api_spec,
-            "acea_spec": oil.acea_spec,
+            "acea_specs": list(oil.acea_specs or []),
             "base_type": oil.base_type,
             "oem_approvals": list(oil.oem_approvals or []),
         }
@@ -328,7 +328,7 @@ Return ONLY one JSON object with exactly this shape:
       "name": "string",
       "sae_viscosity": "string",
       "api_spec": null,
-      "acea_spec": null,
+      "acea_specs": [],
       "base_type": null,
       "oem_approvals": [],
       "recommendation_reason": null,

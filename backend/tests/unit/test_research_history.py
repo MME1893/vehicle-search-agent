@@ -60,11 +60,7 @@ async def persist_research(db, vehicle_id: int, confidence: float = 0.93):
         ),
     )
     service = ResearchService(db, provider, Settings())
-    outcome = await service.research_vehicle(vehicle_id)
-    service.persist_engine_spec(outcome)
-    service.find_candidates(outcome)
-    service.persist_compatibilities(outcome)
-    return outcome
+    return await service.execute_vehicle_research(vehicle_id)
 
 
 @pytest.mark.asyncio
@@ -99,9 +95,8 @@ async def test_history_api_returns_complete_timeline(api_db):
     entry = payload["timeline"][0]
     assert entry["research_run"]["id"] == outcome.research_run.id
     assert entry["sources"][0]["source_type"] == "OFFICIAL_MANUAL"
-    assert entry["engine_specs"][0]["research_run_id"] == outcome.research_run.id
     assert entry["matched_oils"][0]["id"] == oil.id
-    assert entry["compatibility_history"][0]["match_method"] == (
+    assert entry["compatibilities"][0]["match_method"] == (
         "DETERMINISTIC_SPEC_MATCH"
     )
 
@@ -144,6 +139,6 @@ async def test_persistence_flow_keeps_each_run_and_compatibility_snapshot(db):
         first.research_run.id,
         second.research_run.id,
     ]
-    assert [len(entry.compatibility_history) for entry in history.timeline] == [1, 1]
-    assert history.timeline[0].compatibility_history[0].confidence_score == 0.91
-    assert history.timeline[1].compatibility_history[0].confidence_score == 0.97
+    assert [len(entry.compatibilities) for entry in history.timeline] == [1, 1]
+    assert history.timeline[0].compatibilities[0].confidence_score == 0.91
+    assert history.timeline[1].compatibilities[0].confidence_score == 0.97

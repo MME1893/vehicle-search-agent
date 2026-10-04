@@ -132,23 +132,23 @@ async def main(
         elapsed = time.perf_counter() - started
 
         if isinstance(provider, GeminiResearchAdapter):
-            grounding = provider.client.last_grounding
+            execution = outcome.execution
             print(
-                f"Stage 1 duration: {provider.client.last_grounded_duration:.1f}s",
+                f"Stage 1 duration: {(execution.stage1_duration_ms or 0) / 1000:.1f}s",
                 flush=True,
             )
-            print(f"Google Search queries: {len(grounding.queries)}", flush=True)
-            for query in grounding.queries:
+            print(f"Google Search queries: {len(execution.search_queries)}", flush=True)
+            for query in execution.search_queries:
                 print(f"- query: {query}", flush=True)
-            print(f"Grounded sources: {len(grounding.sources)}", flush=True)
-            for source in grounding.sources:
+            print(f"Grounded sources: {len(execution.grounding_sources)}", flush=True)
+            for source in execution.grounding_sources:
                 print(
-                    f"- source: {source.title or '(untitled)'}: "
-                    f"{source.uri or '(no URI)'}",
+                    f"- source: {source.get('title') or '(untitled)'}: "
+                    f"{source.get('url') or '(no URI)'}",
                     flush=True,
                 )
             print(
-                f"Stage 2 duration: {provider.client.last_extraction_duration:.1f}s",
+                f"Stage 2 duration: {(execution.stage2_duration_ms or 0) / 1000:.1f}s",
                 flush=True,
             )
             print(
@@ -202,9 +202,8 @@ async def main(
             ]
             print(
                 f"\nSaved ResearchRun id={outcome.research_run.id}; "
-                f"new products={new_ids}; EngineSpec id={outcome.engine_spec.id}; "
-                f"compatibilities={saved} ids={outcome.compatibility_ids}; "
-                f"history ids={outcome.history_ids}",
+                f"new products={new_ids}; compatibilities={saved} "
+                f"ids={outcome.compatibility_ids}",
                 flush=True,
             )
         else:

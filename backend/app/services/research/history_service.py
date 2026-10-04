@@ -2,7 +2,7 @@ from collections import defaultdict
 
 from sqlalchemy import select
 
-from app.models import CompatibilityHistory, EngineOil, EngineSpec, ResearchRun
+from app.models import Compatibility, EngineOil, ResearchRun
 from app.repositories.vehicle_repository import VehicleRepository
 from app.schemas.research_history import (
     ResearchTimelineEntry,
@@ -33,29 +33,21 @@ class ResearchHistoryService:
             return VehicleResearchHistory(vehicle=vehicle, timeline=[])
 
         run_ids = [run.id for run in runs]
-        specs_by_run = defaultdict(list)
-        for spec in self.db.scalars(
-            select(EngineSpec)
-            .where(EngineSpec.research_run_id.in_(run_ids))
-            .order_by(EngineSpec.created_at, EngineSpec.id)
-        ):
-            specs_by_run[spec.research_run_id].append(spec)
-
-        history_by_run = defaultdict(list)
-        histories = list(
+        compatibility_by_run = defaultdict(list)
+        compatibilities = list(
             self.db.scalars(
-                select(CompatibilityHistory)
+                select(Compatibility)
                 .where(
-                    CompatibilityHistory.vehicle_id == vehicle_id,
-                    CompatibilityHistory.research_run_id.in_(run_ids),
+                    Compatibility.vehicle_id == vehicle_id,
+                    Compatibility.research_run_id.in_(run_ids),
                 )
-                .order_by(CompatibilityHistory.created_at, CompatibilityHistory.id)
+                .order_by(Compatibility.created_at, Compatibility.id)
             )
         )
-        for history in histories:
-            history_by_run[history.research_run_id].append(history)
+        for compatibility in compatibilities:
+            compatibility_by_run[compatibility.research_run_id].append(compatibility)
 
-        oil_ids = {history.engine_oil_id for history in histories}
+        oil_ids = {item.engine_oil_id for item in compatibilities}
         oils_by_id = (
             {
                 oil.id: oil
@@ -75,11 +67,11 @@ class ResearchHistoryService:
             sources = structured_result.get("sources", [])
             if not isinstance(sources, list):
                 sources = []
-            run_histories = history_by_run[run.id]
+            run_compatibilities = compatibility_by_run[run.id]
             matched_oils = []
             seen_oil_ids = set()
-            for history in run_histories:
-                oil = oils_by_id.get(history.engine_oil_id)
+            for compatibility in run_compatibilities:
+                oil = oils_by_id.get(compatibility.engine_oil_id)
                 if oil is not None and oil.id not in seen_oil_ids:
                     seen_oil_ids.add(oil.id)
                     matched_oils.append(oil)
@@ -87,9 +79,8 @@ class ResearchHistoryService:
                 ResearchTimelineEntry(
                     research_run=run,
                     sources=[source for source in sources if isinstance(source, dict)],
-                    engine_specs=specs_by_run[run.id],
                     matched_oils=matched_oils,
-                    compatibility_history=run_histories,
+                    compatibilities=run_compatibilities,
                 )
             )
         return VehicleResearchHistory(vehicle=vehicle, timeline=timeline)
