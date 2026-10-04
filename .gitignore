@@ -87,3 +87,5 @@ data/*.cache
 
 # Jupyter
 .ipynb_checkpoints/
+
+zip-project.ps1
