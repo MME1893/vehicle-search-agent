@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.agents.errors import ResearchProviderConfigurationError
+from app.research.errors import ResearchProviderConfigurationError
 
 ROOT_DIR = pathlib.Path(__file__).resolve().parents[3]
 ENV_FILE = ROOT_DIR / ".env"

@@ -15,6 +15,16 @@ API_RANK = {
     "SP": 14,
     "SQ": 15,
 }
+
+DIESEL_API_RANK = {
+    "CF": 1,
+    "CF-4": 2,
+    "CG-4": 3,
+    "CH-4": 4,
+    "CI-4": 5,
+    "CJ-4": 6,
+    "CK-4": 7,
+}
 from app.domain.enums import CompatibilityType, CreatedBy, JobStatus
 
 JOB_STATUSES = {item.value for item in JobStatus}

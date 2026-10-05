@@ -5,6 +5,7 @@ from app.api.v1.endpoints import (
     agents,
     compatibility,
     engine_oils,
+    research_history,
     vehicles,
 )
 
@@ -14,3 +15,4 @@ router.include_router(engine_oils.router)
 router.include_router(compatibility.router)
 router.include_router(agent_jobs.router)
 router.include_router(agents.router)
+router.include_router(research_history.router)
