@@ -38,4 +38,6 @@ def _set_vehicle_identity(_mapper, _connection, vehicle: Vehicle) -> None:
         vehicle.production_year_from,
         vehicle.production_year_to,
         vehicle.engine_code,
+        vehicle.engine_displacement,
+        vehicle.fuel_type,
     )

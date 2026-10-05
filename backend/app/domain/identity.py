@@ -26,6 +26,8 @@ def vehicle_identity_key(
     production_year_from: int | None,
     production_year_to: int | None,
     engine_code: str | None,
+    engine_displacement: str | None,
+    fuel_type: str | None,
 ) -> str:
     return "|".join(
         normalize_identity_part(value)
@@ -36,5 +38,7 @@ def vehicle_identity_key(
             production_year_from,
             production_year_to,
             engine_code,
+            engine_displacement,
+            fuel_type,
         )
     )

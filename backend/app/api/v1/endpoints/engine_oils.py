@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.api.errors import raise_conflict
 from app.db.session import get_db
 from app.repositories.engine_oil_repository import EngineOilRepository
 from app.schemas.engine_oil import EngineOilCreate, EngineOilRead, EngineOilUpdate
@@ -12,7 +13,10 @@ DB_DEPENDENCY = Depends(get_db)
 
 @router.post("", response_model=EngineOilRead, status_code=201)
 def create(data: EngineOilCreate, db: Session = DB_DEPENDENCY):
-    return EngineOilRepository(db).create(data.model_dump())
+    try:
+        return EngineOilRepository(db).create(data.model_dump())
+    except IntegrityError as exc:
+        raise_conflict(db, "engine oil already exists", exc)
 
 
 @router.get("")
@@ -46,7 +50,10 @@ def update(oil_id: int, data: EngineOilUpdate, db: Session = DB_DEPENDENCY):
     item = repo.get_by_id(oil_id)
     if not item:
         raise HTTPException(404, "engine oil not found")
-    return repo.update(item, data.model_dump(exclude_unset=True))
+    try:
+        return repo.update(item, data.model_dump(exclude_unset=True))
+    except IntegrityError as exc:
+        raise_conflict(db, "engine oil already exists", exc)
 
 
 @router.delete("/{oil_id}", status_code=204)
@@ -58,6 +65,5 @@ def delete(oil_id: int, db: Session = DB_DEPENDENCY):
     try:
         repo.delete(item)
     except IntegrityError as exc:
-        db.rollback()
-        raise HTTPException(409, "engine oil is referenced by audit history") from exc
+        raise_conflict(db, "engine oil is referenced by audit history", exc)
     return Response(status_code=204)

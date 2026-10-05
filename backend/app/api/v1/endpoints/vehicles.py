@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.api.errors import raise_conflict
 from app.db.session import get_db
 from app.repositories.vehicle_repository import VehicleRepository
 from app.schemas.vehicle import VehicleCreate, VehicleRead, VehicleUpdate
@@ -12,7 +13,10 @@ DB_DEPENDENCY = Depends(get_db)
 
 @router.post("", response_model=VehicleRead, status_code=201)
 def create(data: VehicleCreate, db: Session = DB_DEPENDENCY):
-    return VehicleRepository(db).create(data.model_dump())
+    try:
+        return VehicleRepository(db).create(data.model_dump())
+    except IntegrityError as exc:
+        raise_conflict(db, "vehicle already exists", exc)
 
 
 @router.get("")
@@ -46,7 +50,10 @@ def update(vehicle_id: int, data: VehicleUpdate, db: Session = DB_DEPENDENCY):
     item = repo.get_by_id(vehicle_id)
     if not item:
         raise HTTPException(404, "vehicle not found")
-    return repo.update(item, data.model_dump(exclude_unset=True))
+    try:
+        return repo.update(item, data.model_dump(exclude_unset=True))
+    except IntegrityError as exc:
+        raise_conflict(db, "vehicle already exists", exc)
 
 
 @router.delete("/{vehicle_id}", status_code=204)
@@ -58,6 +65,5 @@ def delete(vehicle_id: int, db: Session = DB_DEPENDENCY):
     try:
         repo.delete(item)
     except IntegrityError as exc:
-        db.rollback()
-        raise HTTPException(409, "vehicle is referenced by audit history") from exc
+        raise_conflict(db, "vehicle is referenced by audit history", exc)
     return Response(status_code=204)
