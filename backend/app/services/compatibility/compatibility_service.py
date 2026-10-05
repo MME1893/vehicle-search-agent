@@ -10,4 +10,4 @@ class CompatibilityService:
         ):
             raise LookupError("vehicle or engine oil not found")
         data.setdefault("match_method", "MANUAL")
-        return self.compat.create(data)
+        return self.compat.create_event(data)

@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.api.errors import raise_conflict
 from app.db.session import get_db
 from app.repositories.compatibility_repository import CompatibilityRepository
 from app.repositories.engine_oil_repository import EngineOilRepository
@@ -17,9 +19,18 @@ def create(data: CompatibilityCreate, db: Session = DB_DEPENDENCY):
     try:
         return CompatibilityService(
             CompatibilityRepository(db), VehicleRepository(db), EngineOilRepository(db)
-        ).create_event({**data.model_dump(mode="json"), "match_method": "MANUAL"})
+        ).create_event(
+            {
+                **data.model_dump(mode="json"),
+                "match_method": "MANUAL",
+                "research_run_id": None,
+                "created_by": "ADMIN",
+            }
+        )
     except LookupError as exc:
         raise HTTPException(404, str(exc))
+    except IntegrityError as exc:
+        raise_conflict(db, "compatibility event already exists for this research run", exc)
 
 
 @router.get(

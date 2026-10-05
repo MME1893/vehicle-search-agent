@@ -5,22 +5,33 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    UniqueConstraint,
+    desc,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-from app.models.common import TimestampMixin
+from app.models.common import CreatedAtMixin
 
 
-class Compatibility(TimestampMixin, Base):
+class Compatibility(CreatedAtMixin, Base):
     __tablename__ = "vehicle_engine_oil_compatibilities"
     __table_args__ = (
+        Index("ix_compatibility_created_at", "created_at"),
+        Index("ix_compat_vehicle", "vehicle_id"),
+        Index("ix_compat_oil", "engine_oil_id"),
         Index(
             "ix_compatibility_pair_latest",
             "vehicle_id",
             "engine_oil_id",
-            "created_at",
-            "id",
+            desc("created_at"),
+            desc("id"),
+        ),
+        UniqueConstraint(
+            "vehicle_id",
+            "engine_oil_id",
+            "research_run_id",
+            name="uq_compatibility_research_run_oil",
         ),
         CheckConstraint(
             "match_score >= 0 AND match_score <= 100", name="ck_compatibility_score"
@@ -30,7 +41,8 @@ class Compatibility(TimestampMixin, Base):
             name="ck_compatibility_confidence",
         ),
         CheckConstraint(
-            "match_method IN ('MANUAL','DIRECT_RESEARCH_PRODUCT','DETERMINISTIC_SPEC_MATCH')",
+            "match_method IN ('MANUAL','DIRECT_RESEARCH_PRODUCT',"
+            "'DETERMINISTIC_SPEC_MATCH','PROVIDER_CATALOG_MATCH')",
             name="ck_compatibility_match_method",
         ),
         CheckConstraint(
@@ -44,10 +56,10 @@ class Compatibility(TimestampMixin, Base):
     )
     id: Mapped[int] = mapped_column(primary_key=True)
     vehicle_id: Mapped[int] = mapped_column(
-        ForeignKey("vehicles.id", ondelete="RESTRICT"), nullable=False, index=True
+        ForeignKey("vehicles.id", ondelete="RESTRICT"), nullable=False
     )
     engine_oil_id: Mapped[int] = mapped_column(
-        ForeignKey("engine_oils.id", ondelete="RESTRICT"), nullable=False, index=True
+        ForeignKey("engine_oils.id", ondelete="RESTRICT"), nullable=False
     )
     research_run_id: Mapped[int | None] = mapped_column(
         ForeignKey("research_runs.id", ondelete="RESTRICT"), index=True
