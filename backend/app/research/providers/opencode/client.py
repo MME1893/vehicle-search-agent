@@ -424,7 +424,12 @@ class OpenCodeClient:
             if self.model:
                 command.extend(["--model", self.model])
             if self.server_url:
-                command.extend(["--attach", self.server_url])
+                # An attached server otherwise falls back to the server process cwd.
+                # Pin it to this per-run temporary workspace so the same isolation
+                # guarantees apply in both subprocess and server-backed modes.
+                command.extend(
+                    ["--attach", self.server_url, "--dir", str(runtime_directory)]
+                )
             command.extend(["--file", str(runtime_request_path)])
             command.append(
                 "Follow the attached runtime research request exactly. "
