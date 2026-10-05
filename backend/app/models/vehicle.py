@@ -15,6 +15,14 @@ class Vehicle(TimestampMixin, Base):
             "OR production_year_from <= production_year_to",
             name="ck_vehicles_production_year_range",
         ),
+        CheckConstraint(
+            "power_hp IS NULL OR power_hp > 0",
+            name="ck_vehicles_power_hp_positive",
+        ),
+        CheckConstraint(
+            "torque_nm IS NULL OR torque_nm > 0",
+            name="ck_vehicles_torque_nm_positive",
+        ),
     )
     id: Mapped[int] = mapped_column(primary_key=True)
     manufacturer: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
@@ -24,7 +32,14 @@ class Vehicle(TimestampMixin, Base):
     production_year_to: Mapped[int | None] = mapped_column(Integer)
     engine_code: Mapped[str | None] = mapped_column(String(80), index=True)
     engine_displacement: Mapped[str | None] = mapped_column(String(40))
+    engine_type: Mapped[str | None] = mapped_column(String(80))
     fuel_type: Mapped[str | None] = mapped_column(String(40))
+    power_hp: Mapped[int | None] = mapped_column(Integer)
+    torque_nm: Mapped[int | None] = mapped_column(Integer)
+    transmission: Mapped[str | None] = mapped_column(String(80))
+    drivetrain: Mapped[str | None] = mapped_column(String(40))
+    body_type: Mapped[str | None] = mapped_column(String(40))
+    body_style: Mapped[str | None] = mapped_column(String(80))
     identity_key: Mapped[str] = mapped_column(String(600), unique=True, nullable=False)
 
 
@@ -39,5 +54,10 @@ def _set_vehicle_identity(_mapper, _connection, vehicle: Vehicle) -> None:
         vehicle.production_year_to,
         vehicle.engine_code,
         vehicle.engine_displacement,
+        vehicle.engine_type,
         vehicle.fuel_type,
+        vehicle.transmission,
+        vehicle.drivetrain,
+        vehicle.body_type,
+        vehicle.body_style,
     )

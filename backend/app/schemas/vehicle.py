@@ -11,7 +11,14 @@ class VehicleCreate(BaseModel):
     production_year_to: int | None = Field(None, ge=1886, le=3000)
     engine_code: str | None = Field(None, max_length=80)
     engine_displacement: str | None = Field(None, max_length=40)
+    engine_type: str | None = Field(None, max_length=80)
     fuel_type: str | None = Field(None, max_length=40)
+    power_hp: int | None = Field(None, gt=0)
+    torque_nm: int | None = Field(None, gt=0)
+    transmission: str | None = Field(None, max_length=80)
+    drivetrain: str | None = Field(None, max_length=40)
+    body_type: str | None = Field(None, max_length=40)
+    body_style: str | None = Field(None, max_length=80)
 
 
 class VehicleUpdate(BaseModel):
@@ -22,7 +29,14 @@ class VehicleUpdate(BaseModel):
     production_year_to: int | None = Field(None, ge=1886, le=3000)
     engine_code: str | None = Field(None, max_length=80)
     engine_displacement: str | None = Field(None, max_length=40)
+    engine_type: str | None = Field(None, max_length=80)
     fuel_type: str | None = Field(None, max_length=40)
+    power_hp: int | None = Field(None, gt=0)
+    torque_nm: int | None = Field(None, gt=0)
+    transmission: str | None = Field(None, max_length=80)
+    drivetrain: str | None = Field(None, max_length=40)
+    body_type: str | None = Field(None, max_length=40)
+    body_style: str | None = Field(None, max_length=80)
 
 
 class VehicleRead(ORMModel, VehicleCreate):

@@ -29,12 +29,25 @@ class EngineOilRepository(Repository[EngineOil]):
         return list(self.db.scalars(select(EngineOil).order_by(EngineOil.id)))
 
     def find_researched_product(
-        self, brand: str, name: str, sae_viscosity: str, api_spec: str | None = None
+        self,
+        brand: str,
+        name: str,
+        sae_viscosity: str,
+        api_spec: str | None = None,
+        package_volume_liters=None,
     ) -> EngineOil | None:
         # API is deliberately not part of the stable business identity.
         return self.db.scalar(
             select(EngineOil).where(
                 EngineOil.identity_key
-                == engine_oil_identity_key(brand, name, sae_viscosity)
+                == engine_oil_identity_key(
+                    brand, name, sae_viscosity, package_volume_liters
+                )
             )
+        )
+
+    def find_by_identity(self, data: dict) -> EngineOil | None:
+        return self.find_researched_product(
+            data["brand"], data["name"], data["sae_viscosity"],
+            data.get("api_spec"), data.get("package_volume_liters"),
         )
