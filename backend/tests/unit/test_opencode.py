@@ -176,9 +176,13 @@ async def test_successful_run_parses_engine_oil_research_result(monkeypatch):
         "provider/model",
     )
     assert "Vehicle ID: 312" not in args
-    assert args[-3] == "--file"
-    assert Path(args[-2]).name == "runtime_request.md"
-    assert len(args[-1]) < 200
+    file_index = args.index("--file")
+    assert Path(args[file_index + 1]).name == "runtime_request.md"
+    assert args[file_index + 2] == "--"
+    assert len(args[file_index + 3]) < 200
+    assert args[file_index + 3].startswith(
+        "Follow the attached runtime research request exactly."
+    )
 
 
 @pytest.mark.asyncio
@@ -225,6 +229,35 @@ async def test_research_uses_minimal_isolated_working_directory(monkeypatch, tmp
 
 
 @pytest.mark.asyncio
+async def test_server_attach_pins_remote_directory_to_isolated_workspace(monkeypatch):
+    observed = {}
+
+    async def spawn_process(*args, **kwargs):
+        observed["args"] = args
+        observed["cwd"] = Path(kwargs["cwd"])
+        return process(stdout=jsonl_result("websearch"))
+
+    monkeypatch.setattr(
+        "app.research.providers.opencode.client.asyncio.create_subprocess_exec",
+        AsyncMock(side_effect=spawn_process),
+    )
+    client = OpenCodeClient(
+        settings(opencode_server_url="http://127.0.0.1:4096")
+    )
+    client._version = "2.0.16"
+
+    await client.run("research", vehicle_id=312)
+
+    args = observed["args"]
+    attach_index = args.index("--attach")
+    dir_index = args.index("--dir")
+    file_index = args.index("--file")
+    assert args[attach_index + 1] == "http://127.0.0.1:4096"
+    assert Path(args[dir_index + 1]) == observed["cwd"]
+    assert Path(args[file_index + 1]).parent == observed["cwd"]
+
+
+@pytest.mark.asyncio
 async def test_runtime_prompt_is_utf8_file_attachment_not_cli_argument(monkeypatch):
     prompt = (
         "Large multiline runtime request\n"
@@ -256,8 +289,10 @@ async def test_runtime_prompt_is_utf8_file_attachment_not_cli_argument(monkeypat
     assert observed["path"].name == "runtime_request.md"
     assert observed["text"] == prompt
     assert observed["bytes"] == prompt.encode("utf-8")
-    assert len(observed["args"][-1]) < 200
-    assert observed["args"][-1].startswith(
+    file_index = observed["args"].index("--file")
+    assert observed["args"][file_index + 2] == "--"
+    assert len(observed["args"][file_index + 3]) < 200
+    assert observed["args"][file_index + 3].startswith(
         "Follow the attached runtime research request exactly."
     )
     metadata = json.loads(client.last_run_artifacts.metadata_path.read_text())

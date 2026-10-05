@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     opencode_timeout_seconds: float = 90
     opencode_model: str | None = None
     opencode_server_url: str | None = None
+    opencode_debug_logs: bool = False
 
     # Gemini
     gemini_api_key: str | None = None

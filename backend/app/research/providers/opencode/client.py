@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import hashlib
 import json
 import logging
@@ -170,6 +171,7 @@ class OpenCodeClient:
         self.timeout_seconds = settings.opencode_timeout_seconds
         self.model = settings.opencode_model
         self.server_url = settings.opencode_server_url
+        self.debug_logs = settings.opencode_debug_logs
         self.working_directory = working_directory or ROOT_DIR
         self.artifact_directory = ROOT_DIR / "backend" / "logs" / "opencode"
         self.last_run_artifacts: OpenCodeRunArtifacts | None = None
@@ -269,19 +271,30 @@ class OpenCodeClient:
             return text[:limit] + "..."
         return text
 
-    async def _taskkill(self, pid: int, *, force: bool) -> None:
+    async def _taskkill(self, pid: int, *, force: bool) -> bool:
         args = ["taskkill", "/PID", str(pid), "/T"]
         if force:
             args.append("/F")
         try:
             killer = await asyncio.create_subprocess_exec(
                 *args,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
-            await asyncio.wait_for(killer.wait(), timeout=3)
+            stdout, stderr = await asyncio.wait_for(killer.communicate(), timeout=5)
         except (FileNotFoundError, ProcessLookupError, TimeoutError):
             logger.warning("[OpenCode] Could not stop Windows process tree pid=%s", pid)
+            return False
+        if killer.returncode != 0:
+            detail = (stderr or stdout).decode("utf-8", errors="replace").strip()
+            logger.warning(
+                "[OpenCode] taskkill failed pid=%s rc=%s detail=%s",
+                pid,
+                killer.returncode,
+                detail[:500],
+            )
+            return False
+        return True
 
     async def _stop_process(self, process) -> None:
         if process.returncode is not None:
@@ -289,7 +302,11 @@ class OpenCodeClient:
 
         pid = getattr(process, "pid", None)
         if sys.platform == "win32" and isinstance(pid, int):
-            await self._taskkill(pid, force=False)
+            # On Windows a timed-out OpenCode process can leave Bun/Node children
+            # holding the temporary workspace as their cwd. Kill the complete
+            # process tree immediately; a graceful terminate frequently leaves
+            # descendants alive and causes WinError 32 during temp cleanup.
+            await self._taskkill(pid, force=True)
         elif os.name != "nt" and isinstance(pid, int):
             try:
                 os.killpg(os.getpgid(pid), signal.SIGTERM)
@@ -302,14 +319,12 @@ class OpenCodeClient:
                 return
 
         try:
-            await asyncio.wait_for(process.wait(), timeout=3)
+            await asyncio.wait_for(process.wait(), timeout=5)
             return
         except (TimeoutError, ProcessLookupError):
             pass
 
-        if sys.platform == "win32" and isinstance(pid, int):
-            await self._taskkill(pid, force=True)
-        elif os.name != "nt" and isinstance(pid, int):
+        if os.name != "nt" and isinstance(pid, int):
             try:
                 os.killpg(os.getpgid(pid), signal.SIGKILL)
             except ProcessLookupError:
@@ -322,11 +337,32 @@ class OpenCodeClient:
 
         if process.returncode is None:
             try:
-                await asyncio.wait_for(process.wait(), timeout=3)
+                await asyncio.wait_for(process.wait(), timeout=5)
             except (TimeoutError, ProcessLookupError):
                 logger.warning(
                     "[OpenCode] Process did not report exit after forced stop"
                 )
+
+    @staticmethod
+    async def _cleanup_runtime_directory(runtime_directory: Path) -> None:
+        # Windows can briefly keep cwd/file handles open even after taskkill.
+        # Cleanup should never turn an already-useful timeout/error into a second
+        # unrelated WinError 32 that prevents the next benchmark model from running.
+        for attempt in range(6):
+            try:
+                shutil.rmtree(runtime_directory)
+                return
+            except FileNotFoundError:
+                return
+            except OSError as exc:
+                if os.name != "nt" or attempt == 5:
+                    logger.warning(
+                        "[OpenCode] Runtime workspace cleanup deferred path=%s error=%s",
+                        runtime_directory,
+                        exc,
+                    )
+                    return
+                await asyncio.sleep(0.25 * (attempt + 1))
 
     async def _communicate(
         self, process, timeout_seconds: float
@@ -341,7 +377,7 @@ class OpenCodeClient:
             stdout = b""
             stderr = b""
             try:
-                stdout, stderr = await asyncio.wait_for(communication, timeout=3)
+                stdout, stderr = await asyncio.wait_for(communication, timeout=5)
             except (
                 TimeoutError,
                 asyncio.CancelledError,
@@ -349,6 +385,8 @@ class OpenCodeClient:
                 OSError,
             ) as exc:
                 communication.cancel()
+                with contextlib.suppress(asyncio.CancelledError, OSError):
+                    await communication
                 logger.debug(
                     "[OpenCode] Could not collect output after timeout: %s", exc
                 )
@@ -404,10 +442,9 @@ class OpenCodeClient:
         logger.info(
             "[OpenCode] Starting research agent=%s version=%s", self.agent, version
         )
-        with tempfile.TemporaryDirectory(
-            prefix="snappcarfix-opencode-"
-        ) as temporary_directory:
-            runtime_directory = Path(temporary_directory).resolve()
+        temporary_directory = tempfile.mkdtemp(prefix="snappcarfix-opencode-")
+        runtime_directory = Path(temporary_directory).resolve()
+        try:
             self._prepare_runtime_workspace(runtime_directory)
             runtime_request_path = runtime_directory / "runtime_request.md"
             runtime_request_path.write_text(
@@ -420,7 +457,10 @@ class OpenCodeClient:
             logger.info("[OpenCode] Runtime request attached via --file")
             logger.info("[OpenCode] Runtime workspace: isolated temporary directory")
 
-            command = ["run", "--format", "json", "--agent", self.agent]
+            command: list[str] = []
+            if self.debug_logs:
+                command.extend(["--print-logs", "--log-level", "DEBUG"])
+            command.extend(["run", "--format", "json", "--agent", self.agent])
             if self.model:
                 command.extend(["--model", self.model])
             if self.server_url:
@@ -430,11 +470,20 @@ class OpenCodeClient:
                 command.extend(
                     ["--attach", self.server_url, "--dir", str(runtime_directory)]
                 )
-            command.extend(["--file", str(runtime_request_path)])
-            command.append(
-                "Follow the attached runtime research request exactly. "
-                "Use only websearch/webfetch as instructed and return the "
-                "requested JSON object only."
+            # OpenCode 1.18.x defines --file as an array option. Without an
+            # explicit `--` separator, yargs consumes the following positional
+            # prompt as another filename (for example: "File not found: Follow
+            # the attached..."). Keep the large runtime request in the UTF-8
+            # attachment and put only this short instruction after `--`.
+            command.extend(
+                [
+                    "--file",
+                    str(runtime_request_path),
+                    "--",
+                    "Follow the attached runtime research request exactly. "
+                    "Use only websearch/webfetch as instructed and return the "
+                    "requested JSON object only.",
+                ]
             )
 
             child_env = os.environ.copy()
@@ -494,6 +543,8 @@ class OpenCodeClient:
                 runtime_prompt_chars=runtime_prompt_chars,
                 runtime_prompt_sha256=runtime_prompt_sha256,
             )
+        finally:
+            await self._cleanup_runtime_directory(runtime_directory)
         logger.info("[OpenCode] Research completed in %.1fs", elapsed)
 
         raw_stdout = stdout.decode("utf-8", errors="replace")
