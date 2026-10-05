@@ -334,11 +334,15 @@ def test_catalog_serialization_has_only_contract_fields():
             "brand": "Behran",
             "name": "Super Rana Plus",
             "sae_viscosity": "5W-30",
-            "api_spec": "SN Plus",
-            "acea_specs": [],
-            "base_type": "Full Synthetic",
-            "oem_approvals": ["GM dexos1 Gen2"],
-        }
+                "api_spec": "SN Plus",
+                "acea_specs": [],
+                "ilsac_spec": None,
+                "base_type": "Full Synthetic",
+                "oem_approvals": ["GM dexos1 Gen2"],
+                "package_volume_liters": None,
+                "package_volume_label": None,
+                "claimed_service_interval_km": None,
+            }
     ]
 
 

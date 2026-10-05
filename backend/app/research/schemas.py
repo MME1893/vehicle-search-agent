@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from decimal import Decimal
 from enum import Enum
 from typing import Literal
 
@@ -30,8 +31,14 @@ class ResearchedOilProduct(BaseModel):
     sae_viscosity: str
     api_spec: str | None = None
     acea_specs: list[str] = Field(default_factory=list)
+    ilsac_spec: str | None = None
     base_type: str | None = None
     oem_approvals: list[str] = Field(default_factory=list)
+    package_volume_liters: Decimal | None = Field(
+        None, gt=0, max_digits=6, decimal_places=2
+    )
+    package_volume_label: str | None = None
+    claimed_service_interval_km: int | None = Field(None, gt=0)
     recommendation_reason: str | None = None
     source_urls: list[str] = Field(default_factory=list)
 

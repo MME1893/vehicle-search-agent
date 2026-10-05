@@ -38,7 +38,14 @@ class OpenRouterResearchProvider:
             "production_year_to": vehicle.production_year_to,
             "engine_code": vehicle.engine_code,
             "engine_displacement": vehicle.engine_displacement,
+            "engine_type": getattr(vehicle, "engine_type", None),
             "fuel_type": vehicle.fuel_type,
+            "power_hp": getattr(vehicle, "power_hp", None),
+            "torque_nm": getattr(vehicle, "torque_nm", None),
+            "transmission": getattr(vehicle, "transmission", None),
+            "drivetrain": getattr(vehicle, "drivetrain", None),
+            "body_type": getattr(vehicle, "body_type", None),
+            "body_style": getattr(vehicle, "body_style", None),
         }
 
     @staticmethod

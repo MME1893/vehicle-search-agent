@@ -226,7 +226,11 @@ class ResearchService:
         resolved = []
         for product in outcome.result.recommended_products:
             oil = self.oils.find_researched_product(
-                product.brand, product.name, product.sae_viscosity, product.api_spec
+                product.brand,
+                product.name,
+                product.sae_viscosity,
+                product.api_spec,
+                product.package_volume_liters,
             )
             newly_created = False
             if (
@@ -243,8 +247,12 @@ class ResearchService:
                     "sae_viscosity": product.sae_viscosity.strip().upper(),
                     "api_spec": product.api_spec,
                     "acea_specs": product.acea_specs,
+                    "ilsac_spec": product.ilsac_spec,
                     "base_type": product.base_type,
                     "oem_approvals": product.oem_approvals,
+                    "package_volume_liters": product.package_volume_liters,
+                    "package_volume_label": product.package_volume_label,
+                    "claimed_service_interval_km": product.claimed_service_interval_km,
                     "created_from_research_run_id": run.id if run else None,
                 }
                 oil = self.oils.create(values) if persist else EngineOil(**values)

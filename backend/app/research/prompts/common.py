@@ -11,7 +11,8 @@ Determine the documented engine-oil technical requirements for the exact vehicle
 provided by the application. You have live web search and MUST research the web
 before answering; do not answer from memory alone. Use only the supplied vehicle
 identity fields and account for manufacturer, model, trim/variant, production-year
-range, engine code, displacement, and fuel type.
+range, engine code, displacement, engine/fuel type, transmission, drivetrain, and
+body configuration.
 
 Before relying on general results, seek evidence in this order:
 1. official owner's manual;
@@ -61,7 +62,10 @@ Return JSON only, with no Markdown or prose outside JSON, matching this shape:
   "recommended_products": [{
     "brand": "string", "name": "string", "sae_viscosity": "string",
     "api_spec": "string or null", "acea_specs": ["string"],
-    "base_type": "string or null", "oem_approvals": ["string"],
+    "ilsac_spec": "string or null", "base_type": "string or null",
+    "oem_approvals": ["string"], "package_volume_liters": "number or null",
+    "package_volume_label": "string or null",
+    "claimed_service_interval_km": "integer or null",
     "recommendation_reason": "string or null", "source_urls": ["https://..."]
   }],
   "notes": "string or null"
@@ -78,6 +82,13 @@ content. Return valid JSON only, without Markdown."""
 def _vehicle_identity(vehicle: "Vehicle") -> str:
     year_from = vehicle.production_year_from or "unknown"
     year_to = vehicle.production_year_to or "unknown"
+    engine_type = getattr(vehicle, "engine_type", None)
+    power_hp = getattr(vehicle, "power_hp", None)
+    torque_nm = getattr(vehicle, "torque_nm", None)
+    transmission = getattr(vehicle, "transmission", None)
+    drivetrain = getattr(vehicle, "drivetrain", None)
+    body_type = getattr(vehicle, "body_type", None)
+    body_style = getattr(vehicle, "body_style", None)
     return f"""Vehicle ID: {vehicle.id}
 Manufacturer: {vehicle.manufacturer}
 Model: {vehicle.model}
@@ -85,7 +96,14 @@ Trim: {vehicle.trim or "unknown"}
 Production years: {year_from}-{year_to}
 Engine code: {vehicle.engine_code or "unknown"}
 Engine displacement: {vehicle.engine_displacement or "unknown"}
+Engine type: {engine_type or "unknown"}
 Fuel type: {vehicle.fuel_type or "unknown"}
+Power: {f"{power_hp} hp" if power_hp is not None else "unknown"}
+Torque: {f"{torque_nm} Nm" if torque_nm is not None else "unknown"}
+Transmission: {transmission or "unknown"}
+Drivetrain: {drivetrain or "unknown"}
+Body type: {body_type or "unknown"}
+Body style: {body_style or "unknown"}
 Market: Iran"""
 
 
@@ -181,8 +199,16 @@ def serialize_oil_catalog(oils: list["EngineOil"]) -> list[dict]:
             "sae_viscosity": oil.sae_viscosity,
             "api_spec": oil.api_spec,
             "acea_specs": list(oil.acea_specs or []),
+            "ilsac_spec": oil.ilsac_spec,
             "base_type": oil.base_type,
             "oem_approvals": list(oil.oem_approvals or []),
+            "package_volume_liters": (
+                str(oil.package_volume_liters)
+                if oil.package_volume_liters is not None
+                else None
+            ),
+            "package_volume_label": oil.package_volume_label,
+            "claimed_service_interval_km": oil.claimed_service_interval_km,
         }
         for oil in oils
     ]
@@ -254,6 +280,13 @@ def build_opencode_vehicle_prompt(vehicle: "Vehicle") -> str:
     )
 
     vehicle_id = vehicle.id
+    engine_type = getattr(vehicle, "engine_type", None)
+    power_hp = getattr(vehicle, "power_hp", None)
+    torque_nm = getattr(vehicle, "torque_nm", None)
+    transmission = getattr(vehicle, "transmission", None)
+    drivetrain = getattr(vehicle, "drivetrain", None)
+    body_type = getattr(vehicle, "body_type", None)
+    body_style = getattr(vehicle, "body_style", None)
 
     return f"""
 STANDALONE WEB RESEARCH TASK.
@@ -277,7 +310,14 @@ Trim / variant: {vehicle.trim or "unknown"}
 Production years: {year_from}-{year_to}
 Engine code: {vehicle.engine_code or "unknown"}
 Engine displacement: {vehicle.engine_displacement or "unknown"}
+Engine type: {engine_type or "unknown"}
 Fuel type: {vehicle.fuel_type or "unknown"}
+Power: {f"{power_hp} hp" if power_hp is not None else "unknown"}
+Torque: {f"{torque_nm} Nm" if torque_nm is not None else "unknown"}
+Transmission: {transmission or "unknown"}
+Drivetrain: {drivetrain or "unknown"}
+Body type: {body_type or "unknown"}
+Body style: {body_style or "unknown"}
 
 Search budget:
 
@@ -329,8 +369,12 @@ Return ONLY one JSON object with exactly this shape:
       "sae_viscosity": "string",
       "api_spec": null,
       "acea_specs": [],
+      "ilsac_spec": null,
       "base_type": null,
       "oem_approvals": [],
+      "package_volume_liters": null,
+      "package_volume_label": null,
+      "claimed_service_interval_km": null,
       "recommendation_reason": null,
       "source_urls": ["https://..."]
     }}
