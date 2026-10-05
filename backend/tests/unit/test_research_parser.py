@@ -1,6 +1,6 @@
 import pytest
 
-from app.agents.parser import ResearchResultParseError, parse_research_result
+from app.research.parser import ResearchResultParseError, parse_research_result
 
 
 def payload(**overrides):

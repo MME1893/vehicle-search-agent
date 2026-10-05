@@ -7,14 +7,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.agents.schemas import EngineOilResearchResult
 from app.core.config import Settings
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 from app.repositories.engine_oil_repository import EngineOilRepository
 from app.repositories.vehicle_repository import VehicleRepository
-from app.services.research import ResearchService
+from app.research import ResearchService
+from app.research.schemas import EngineOilResearchResult
 
 
 @pytest.fixture
@@ -84,7 +84,9 @@ async def test_history_api_returns_complete_timeline(api_db):
 
     app.dependency_overrides[get_db] = override_db
     try:
-        response = TestClient(app).get(f"/api/research/vehicles/{vehicle.id}/history")
+        response = TestClient(app).get(
+            f"/api/v1/vehicles/{vehicle.id}/research-history"
+        )
     finally:
         app.dependency_overrides.clear()
 
@@ -107,7 +109,7 @@ def test_history_api_returns_404_for_unknown_vehicle(api_db):
 
     app.dependency_overrides[get_db] = override_db
     try:
-        response = TestClient(app).get("/api/research/vehicles/999/history")
+        response = TestClient(app).get("/api/v1/vehicles/999/research-history")
     finally:
         app.dependency_overrides.clear()
     assert response.status_code == 404
@@ -132,7 +134,7 @@ async def test_persistence_flow_keeps_each_run_and_compatibility_snapshot(db):
     first = await persist_research(db, vehicle.id, 0.91)
     second = await persist_research(db, vehicle.id, 0.97)
 
-    from app.services.research.history_service import ResearchHistoryService
+    from app.research.history import ResearchHistoryService
 
     history = ResearchHistoryService(db).get_vehicle_history(vehicle.id)
     assert [entry.research_run.id for entry in history.timeline] == [

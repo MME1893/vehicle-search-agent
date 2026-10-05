@@ -6,24 +6,30 @@ from unittest.mock import AsyncMock
 import pytest
 from google.genai import errors
 
-from app.agents.errors import (
-    GeminiProviderError,
-    ResearchProviderConfigurationError,
-    ResearchProviderTimeoutError,
-)
-from app.agents.factory import create_research_provider
-from app.agents.gemini_client import GeminiClient
-from app.agents.gemini_research_adapter import GeminiResearchAdapter
-from app.agents.opencode_research_agent import OpenCodeResearchAgent
-from app.agents.prompts import serialize_oil_catalog
-from app.agents.protocols import CatalogResearchProvider, ResearchProvider
-from app.agents.research_agent import ResearchAgent
-from app.agents.schemas import CatalogResearchResult, EngineOilResearchResult
 from app.core.config import Settings
 from app.models import EngineOil, Vehicle
 from app.repositories.engine_oil_repository import EngineOilRepository
 from app.repositories.vehicle_repository import VehicleRepository
-from app.services.research import ResearchService
+from app.research import ResearchService
+from app.research.contracts import CatalogResearchProvider, ResearchProvider
+from app.research.errors import (
+    GeminiProviderError,
+    ResearchProviderConfigurationError,
+    ResearchProviderTimeoutError,
+)
+from app.research.factory import create_research_provider
+from app.research.prompts import serialize_oil_catalog
+from app.research.providers.gemini.client import GeminiClient
+from app.research.providers.gemini.provider import (
+    GeminiResearchProvider as GeminiResearchAdapter,
+)
+from app.research.providers.opencode.provider import (
+    OpenCodeResearchProvider as OpenCodeResearchAgent,
+)
+from app.research.providers.openrouter.provider import (
+    OpenRouterResearchProvider as ResearchAgent,
+)
+from app.research.schemas import CatalogResearchResult, EngineOilResearchResult
 
 
 def settings(**overrides):

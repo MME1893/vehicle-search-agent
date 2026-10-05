@@ -4,9 +4,14 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.agents.research_agent import ResearchAgent, ResearchExecutionError
 from app.core.config import Settings
 from app.models import Vehicle
+from app.research.providers.openrouter.provider import (
+    OpenRouterResearchProvider as ResearchAgent,
+)
+from app.research.providers.openrouter.provider import (
+    ResearchExecutionError,
+)
 
 
 def response(content):

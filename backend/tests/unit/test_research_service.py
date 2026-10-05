@@ -3,16 +3,16 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.agents.schemas import (
-    EngineOilResearchResult,
-    ProviderOilMatch,
-    ResearchExecution,
-)
 from app.core.config import Settings
 from app.models import Compatibility, EngineOil, ResearchRun
 from app.repositories.engine_oil_repository import EngineOilRepository
 from app.repositories.vehicle_repository import VehicleRepository
-from app.services.research import ResearchService
+from app.research import ResearchService
+from app.research.schemas import (
+    EngineOilResearchResult,
+    ProviderOilMatch,
+    ResearchExecution,
+)
 
 
 def result(vehicle_id, *, products=None, confidence=0.93):
@@ -122,4 +122,6 @@ async def test_provider_catalog_skips_deterministic_matcher(db):
     outcome = await service.execute_vehicle_research(vehicle.id)
     service.matcher.find_candidates.assert_not_called()
     assert outcome.provider_matches[0].engine_oil_id == oil.id
-    assert db.query(Compatibility).one().confidence_score == 0.88
+    event = db.query(Compatibility).one()
+    assert event.confidence_score == 0.88
+    assert event.match_method == "PROVIDER_CATALOG_MATCH"

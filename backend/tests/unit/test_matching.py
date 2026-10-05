@@ -5,6 +5,7 @@ from app.models import EngineOil
 from app.services.matching.matcher import DeterministicMatcher
 from app.services.matching.rules import (
     api_satisfies,
+    extract_diesel_api_categories,
     extract_gasoline_api_categories,
     normalize_api_spec,
 )
@@ -276,3 +277,66 @@ def test_normalization_does_not_turn_different_specs_into_matches():
 
 def test_unrecognized_api_requirement_remains_a_hard_failure():
     assert _score_formatted_values(oil_api="SP", minimum_api="UNKNOWN") is None
+
+
+def test_diesel_categories_are_ordered_separately_and_combined_values_parse():
+    assert extract_diesel_api_categories("API CK-4/SN") == ["CK-4"]
+    assert api_satisfies("API CK-4/SN", "CI-4", "diesel")
+    assert not api_satisfies("CI-4/SN", "CK-4", "diesel")
+    assert api_satisfies("SP/CF", "CF", "diesel")
+
+
+def test_fa4_is_not_a_ck4_replacement():
+    assert not api_satisfies("FA-4", "CK-4", "diesel")
+    assert not api_satisfies("CK-4", "FA-4", "diesel")
+    assert api_satisfies("FA-4", "FA-4", "diesel")
+
+
+def test_diesel_matcher_uses_vehicle_fuel_family():
+    requirement = OilRequirement(
+        engine_code="D",
+        fuel_type="diesel",
+        recommended_sae=["5W-40"],
+        minimum_api="CI-4",
+    )
+    oil = EngineOil(
+        brand="B",
+        name="Diesel",
+        sae_viscosity="5W-40",
+        api_spec="API CK-4/SN",
+        acea_specs=[],
+        oem_approvals=[],
+    )
+    assert DeterministicMatcher().score(requirement, oil) is not None
+
+
+def test_missing_fuel_type_infers_unambiguous_api_family_only():
+    assert api_satisfies("SP/CF", "SN")
+    assert api_satisfies("CK-4/SN", "CI-4")
+    assert not api_satisfies("CK-4/SN", "CK-4/SN")
+    assert not api_satisfies("SP", "SN", "electric")
+
+
+def test_acea_and_oem_requirements_are_hard_alternative_gates():
+    requirement = OilRequirement(
+        engine_code="E",
+        recommended_sae=["5W-40"],
+        acea_specs=["A3/B4", "C3"],
+        oem_approvals=["MB 229.5", "VW 502 00"],
+    )
+    passing = EngineOil(
+        brand="B", name="P", sae_viscosity="5W-40", api_spec="SP",
+        acea_specs=["C3"], oem_approvals=["VW502.00"],
+    )
+    wrong_acea = EngineOil(
+        brand="B", name="A", sae_viscosity="5W-40", api_spec="SP",
+        acea_specs=["A5/B5"], oem_approvals=["VW 502 00"],
+    )
+    wrong_oem = EngineOil(
+        brand="B", name="O", sae_viscosity="5W-40", api_spec="SP",
+        acea_specs=["C3"], oem_approvals=["MB 229.3"],
+    )
+    matcher = DeterministicMatcher()
+    assert matcher.score(requirement, passing) is not None
+    assert matcher.score(requirement, wrong_acea) is None
+    assert matcher.score(requirement, wrong_oem) is None

@@ -1,7 +1,7 @@
 import pytest
 
-from app.agents.evaluator import evaluate_research
-from app.agents.schemas import EngineOilResearchResult
+from app.research.evaluator import evaluate_research
+from app.research.schemas import EngineOilResearchResult
 
 
 def result(*, sources=None, **overrides):
