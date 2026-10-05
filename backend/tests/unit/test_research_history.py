@@ -7,14 +7,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.agents.schemas import EngineOilResearchResult
 from app.core.config import Settings
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 from app.repositories.engine_oil_repository import EngineOilRepository
 from app.repositories.vehicle_repository import VehicleRepository
-from app.services.research import ResearchService
+from app.research import ResearchService
+from app.research.schemas import EngineOilResearchResult
 
 
 @pytest.fixture
@@ -60,11 +60,7 @@ async def persist_research(db, vehicle_id: int, confidence: float = 0.93):
         ),
     )
     service = ResearchService(db, provider, Settings())
-    outcome = await service.research_vehicle(vehicle_id)
-    service.persist_engine_spec(outcome)
-    service.find_candidates(outcome)
-    service.persist_compatibilities(outcome)
-    return outcome
+    return await service.execute_vehicle_research(vehicle_id)
 
 
 @pytest.mark.asyncio
@@ -88,7 +84,9 @@ async def test_history_api_returns_complete_timeline(api_db):
 
     app.dependency_overrides[get_db] = override_db
     try:
-        response = TestClient(app).get(f"/api/research/vehicles/{vehicle.id}/history")
+        response = TestClient(app).get(
+            f"/api/v1/vehicles/{vehicle.id}/research-history"
+        )
     finally:
         app.dependency_overrides.clear()
 
@@ -99,9 +97,8 @@ async def test_history_api_returns_complete_timeline(api_db):
     entry = payload["timeline"][0]
     assert entry["research_run"]["id"] == outcome.research_run.id
     assert entry["sources"][0]["source_type"] == "OFFICIAL_MANUAL"
-    assert entry["engine_specs"][0]["research_run_id"] == outcome.research_run.id
     assert entry["matched_oils"][0]["id"] == oil.id
-    assert entry["compatibility_history"][0]["match_method"] == (
+    assert entry["compatibilities"][0]["match_method"] == (
         "DETERMINISTIC_SPEC_MATCH"
     )
 
@@ -112,7 +109,7 @@ def test_history_api_returns_404_for_unknown_vehicle(api_db):
 
     app.dependency_overrides[get_db] = override_db
     try:
-        response = TestClient(app).get("/api/research/vehicles/999/history")
+        response = TestClient(app).get("/api/v1/vehicles/999/research-history")
     finally:
         app.dependency_overrides.clear()
     assert response.status_code == 404
@@ -137,13 +134,13 @@ async def test_persistence_flow_keeps_each_run_and_compatibility_snapshot(db):
     first = await persist_research(db, vehicle.id, 0.91)
     second = await persist_research(db, vehicle.id, 0.97)
 
-    from app.services.research.history_service import ResearchHistoryService
+    from app.research.history import ResearchHistoryService
 
     history = ResearchHistoryService(db).get_vehicle_history(vehicle.id)
     assert [entry.research_run.id for entry in history.timeline] == [
         first.research_run.id,
         second.research_run.id,
     ]
-    assert [len(entry.compatibility_history) for entry in history.timeline] == [1, 1]
-    assert history.timeline[0].compatibility_history[0].confidence_score == 0.91
-    assert history.timeline[1].compatibility_history[0].confidence_score == 0.97
+    assert [len(entry.compatibilities) for entry in history.timeline] == [1, 1]
+    assert history.timeline[0].compatibilities[0].confidence_score == 0.91
+    assert history.timeline[1].compatibilities[0].confidence_score == 0.97

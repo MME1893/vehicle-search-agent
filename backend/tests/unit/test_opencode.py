@@ -6,8 +6,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.agents.factory import create_research_agent
-from app.agents.opencode_client import (
+from app.core.config import Settings
+from app.research.factory import create_research_agent
+from app.research.providers.opencode.client import (
     ALLOWED_RESEARCH_TOOLS,
     OpenCodeClient,
     OpenCodeExecutionError,
@@ -17,9 +18,15 @@ from app.agents.opencode_client import (
     extract_last_json_object,
     extract_tool_names,
 )
-from app.agents.opencode_research_agent import OpenCodeResearchAgent
-from app.agents.research_agent import ResearchAgent, ResearchExecutionError
-from app.core.config import Settings
+from app.research.providers.opencode.provider import (
+    OpenCodeResearchProvider as OpenCodeResearchAgent,
+)
+from app.research.providers.openrouter.provider import (
+    OpenRouterResearchProvider as ResearchAgent,
+)
+from app.research.providers.openrouter.provider import (
+    ResearchExecutionError,
+)
 
 VALID_RESULT = b"""{
   "research_status": "FOUND",
@@ -65,7 +72,7 @@ def isolate_raw_output(monkeypatch, tmp_path):
     target_agent = tmp_path / ".opencode" / "agents" / "oil-research.md"
     target_agent.parent.mkdir(parents=True)
     target_agent.write_text(source_agent.read_text(encoding="utf-8"), encoding="utf-8")
-    monkeypatch.setattr("app.agents.opencode_client.ROOT_DIR", tmp_path)
+    monkeypatch.setattr("app.research.providers.opencode.client.ROOT_DIR", tmp_path)
 
 
 def vehicle():
@@ -130,7 +137,7 @@ def test_runtime_prompt_is_web_only_and_contains_exact_identity():
     assert "Trim / variant: تیپ 5" in prompt
     assert "Production years: 2003-2021" in prompt
     assert "Engine code: TU5" in prompt
-    assert "Engine displacement: 1587 cc" in prompt
+    assert "Engine displacement: 1587" in prompt
     assert "Fuel type: gasoline" in prompt
     assert "vehicle_id MUST be exactly 312" in prompt
     assert 'engine_code MUST be exactly "TU5"' in prompt
@@ -148,7 +155,7 @@ async def test_successful_run_parses_engine_oil_research_result(monkeypatch):
     item = process()
     spawn = AsyncMock(return_value=item)
     monkeypatch.setattr(
-        "app.agents.opencode_client.asyncio.create_subprocess_exec", spawn
+        "app.research.providers.opencode.client.asyncio.create_subprocess_exec", spawn
     )
     client = OpenCodeClient(settings(opencode_model="provider/model"))
     client._version = "1.18.34"
@@ -169,9 +176,13 @@ async def test_successful_run_parses_engine_oil_research_result(monkeypatch):
         "provider/model",
     )
     assert "Vehicle ID: 312" not in args
-    assert args[-3] == "--file"
-    assert Path(args[-2]).name == "runtime_request.md"
-    assert len(args[-1]) < 200
+    file_index = args.index("--file")
+    assert Path(args[file_index + 1]).name == "runtime_request.md"
+    assert args[file_index + 2] == "--"
+    assert len(args[file_index + 3]) < 200
+    assert args[file_index + 3].startswith(
+        "Follow the attached runtime research request exactly."
+    )
 
 
 @pytest.mark.asyncio
@@ -196,7 +207,7 @@ async def test_research_uses_minimal_isolated_working_directory(monkeypatch, tmp
         return process(stdout=jsonl_result("websearch"))
 
     monkeypatch.setattr(
-        "app.agents.opencode_client.asyncio.create_subprocess_exec",
+        "app.research.providers.opencode.client.asyncio.create_subprocess_exec",
         AsyncMock(side_effect=spawn_process),
     )
     client = OpenCodeClient(settings())
@@ -215,6 +226,35 @@ async def test_research_uses_minimal_isolated_working_directory(monkeypatch, tmp
     assert observed["env"]["PWD"] == str(observed["cwd"])
     assert "VIRTUAL_ENV" not in observed["env"]
     assert "PYTHONPATH" not in observed["env"]
+
+
+@pytest.mark.asyncio
+async def test_server_attach_pins_remote_directory_to_isolated_workspace(monkeypatch):
+    observed = {}
+
+    async def spawn_process(*args, **kwargs):
+        observed["args"] = args
+        observed["cwd"] = Path(kwargs["cwd"])
+        return process(stdout=jsonl_result("websearch"))
+
+    monkeypatch.setattr(
+        "app.research.providers.opencode.client.asyncio.create_subprocess_exec",
+        AsyncMock(side_effect=spawn_process),
+    )
+    client = OpenCodeClient(
+        settings(opencode_server_url="http://127.0.0.1:4096")
+    )
+    client._version = "2.0.16"
+
+    await client.run("research", vehicle_id=312)
+
+    args = observed["args"]
+    attach_index = args.index("--attach")
+    dir_index = args.index("--dir")
+    file_index = args.index("--file")
+    assert args[attach_index + 1] == "http://127.0.0.1:4096"
+    assert Path(args[dir_index + 1]) == observed["cwd"]
+    assert Path(args[file_index + 1]).parent == observed["cwd"]
 
 
 @pytest.mark.asyncio
@@ -237,7 +277,7 @@ async def test_runtime_prompt_is_utf8_file_attachment_not_cli_argument(monkeypat
         return process(stdout=jsonl_result("websearch"))
 
     monkeypatch.setattr(
-        "app.agents.opencode_client.asyncio.create_subprocess_exec",
+        "app.research.providers.opencode.client.asyncio.create_subprocess_exec",
         AsyncMock(side_effect=spawn_process),
     )
     client = OpenCodeClient(settings())
@@ -249,8 +289,10 @@ async def test_runtime_prompt_is_utf8_file_attachment_not_cli_argument(monkeypat
     assert observed["path"].name == "runtime_request.md"
     assert observed["text"] == prompt
     assert observed["bytes"] == prompt.encode("utf-8")
-    assert len(observed["args"][-1]) < 200
-    assert observed["args"][-1].startswith(
+    file_index = observed["args"].index("--file")
+    assert observed["args"][file_index + 2] == "--"
+    assert len(observed["args"][file_index + 3]) < 200
+    assert observed["args"][file_index + 3].startswith(
         "Follow the attached runtime research request exactly."
     )
     metadata = json.loads(client.last_run_artifacts.metadata_path.read_text())
@@ -262,7 +304,7 @@ async def test_runtime_prompt_is_utf8_file_attachment_not_cli_argument(monkeypat
 async def test_executable_not_installed_is_clear_domain_error(monkeypatch):
     spawn = AsyncMock(side_effect=FileNotFoundError)
     monkeypatch.setattr(
-        "app.agents.opencode_client.asyncio.create_subprocess_exec", spawn
+        "app.research.providers.opencode.client.asyncio.create_subprocess_exec", spawn
     )
     with pytest.raises(OpenCodeNotInstalledError, match="executable was not found"):
         await OpenCodeClient(settings()).run("research")
@@ -280,7 +322,7 @@ async def test_timeout_terminates_process(monkeypatch):
     item.terminate.side_effect = terminate
     spawn = AsyncMock(return_value=item)
     monkeypatch.setattr(
-        "app.agents.opencode_client.asyncio.create_subprocess_exec", spawn
+        "app.research.providers.opencode.client.asyncio.create_subprocess_exec", spawn
     )
     client = OpenCodeClient(settings())
     client._version = "1.18.34"
@@ -306,7 +348,7 @@ async def test_one_second_timeout_stops_process_and_saves_output(monkeypatch):
 
     item.terminate.side_effect = terminate
     monkeypatch.setattr(
-        "app.agents.opencode_client.asyncio.create_subprocess_exec",
+        "app.research.providers.opencode.client.asyncio.create_subprocess_exec",
         AsyncMock(return_value=item),
     )
     client = OpenCodeClient(settings(opencode_timeout_seconds=1))
@@ -325,7 +367,7 @@ async def test_one_second_timeout_stops_process_and_saves_output(monkeypatch):
 async def test_nonzero_exit_includes_safe_stderr(monkeypatch):
     spawn = AsyncMock(return_value=process(stderr=b"provider failed", returncode=1))
     monkeypatch.setattr(
-        "app.agents.opencode_client.asyncio.create_subprocess_exec", spawn
+        "app.research.providers.opencode.client.asyncio.create_subprocess_exec", spawn
     )
     client = OpenCodeClient(settings())
     client._version = "1.18.34"
@@ -337,7 +379,7 @@ async def test_nonzero_exit_includes_safe_stderr(monkeypatch):
 async def test_empty_output_is_rejected(monkeypatch):
     spawn = AsyncMock(return_value=process(stdout=b""))
     monkeypatch.setattr(
-        "app.agents.opencode_client.asyncio.create_subprocess_exec", spawn
+        "app.research.providers.opencode.client.asyncio.create_subprocess_exec", spawn
     )
     client = OpenCodeClient(settings())
     client._version = "1.18.34"
@@ -349,7 +391,7 @@ async def test_empty_output_is_rejected(monkeypatch):
 @pytest.mark.asyncio
 async def test_forbidden_local_tool_event_is_rejected(monkeypatch, forbidden_tool):
     monkeypatch.setattr(
-        "app.agents.opencode_client.asyncio.create_subprocess_exec",
+        "app.research.providers.opencode.client.asyncio.create_subprocess_exec",
         AsyncMock(return_value=process(stdout=jsonl_result(forbidden_tool))),
     )
     client = OpenCodeClient(settings())
@@ -366,7 +408,7 @@ async def test_forbidden_local_tool_event_is_rejected(monkeypatch, forbidden_too
 async def test_valid_web_only_tool_stream_is_accepted(monkeypatch):
     tools = ("websearch", "websearch", "webfetch")
     monkeypatch.setattr(
-        "app.agents.opencode_client.asyncio.create_subprocess_exec",
+        "app.research.providers.opencode.client.asyncio.create_subprocess_exec",
         AsyncMock(return_value=process(stdout=jsonl_result(*tools))),
     )
     client = OpenCodeClient(settings())
@@ -382,7 +424,7 @@ async def test_valid_web_only_tool_stream_is_accepted(monkeypatch):
 @pytest.mark.asyncio
 async def test_empty_tool_list_may_pass(monkeypatch):
     monkeypatch.setattr(
-        "app.agents.opencode_client.asyncio.create_subprocess_exec",
+        "app.research.providers.opencode.client.asyncio.create_subprocess_exec",
         AsyncMock(return_value=process()),
     )
     client = OpenCodeClient(settings())
@@ -473,13 +515,13 @@ async def test_raw_output_exists_before_research_parser_runs(monkeypatch):
     ).encode()
     item = process(stdout=raw_events)
     monkeypatch.setattr(
-        "app.agents.opencode_client.asyncio.create_subprocess_exec",
+        "app.research.providers.opencode.client.asyncio.create_subprocess_exec",
         AsyncMock(return_value=item),
     )
     client = OpenCodeClient(settings())
     client._version = "1.18.34"
 
-    from app.agents.parser import parse_research_result as real_parser
+    from app.research.parser import parse_research_result as real_parser
 
     def parser_spy(content):
         assert client.last_run_artifacts is not None
@@ -488,7 +530,7 @@ async def test_raw_output_exists_before_research_parser_runs(monkeypatch):
         return real_parser(content)
 
     monkeypatch.setattr(
-        "app.agents.opencode_research_agent.parse_research_result", parser_spy
+        "app.research.providers.opencode.provider.parse_research_result", parser_spy
     )
     result = await OpenCodeResearchAgent(client).research_vehicle_oil_spec(vehicle())
 
@@ -519,7 +561,7 @@ def test_provider_selection_keeps_both_implementations():
 
 def test_command_is_resolved_from_path_for_windows_npm_shim(monkeypatch):
     monkeypatch.setattr(
-        "app.agents.opencode_client.shutil.which",
+        "app.research.providers.opencode.client.shutil.which",
         lambda command: "C:/npm/opencode.CMD",
     )
     assert OpenCodeClient(settings()).command == "C:/npm/opencode.CMD"

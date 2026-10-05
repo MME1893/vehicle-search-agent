@@ -81,9 +81,9 @@ docker-compose.override.yml
 # Project-specific
 .omo/
 .opencode/
-data/*.tmp
-data/*.bak
-data/*.cache
+data/
 
 # Jupyter
 .ipynb_checkpoints/
+
+zip-project.ps1

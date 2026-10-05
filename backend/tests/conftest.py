@@ -1,8 +1,9 @@
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
+import app.models  # noqa: F401 - register all mapped tables
 from app.db.base import Base
-import app.models
 
 
 @pytest.fixture

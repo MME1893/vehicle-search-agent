@@ -15,17 +15,18 @@ API_RANK = {
     "SP": 14,
     "SQ": 15,
 }
-JOB_STATUSES = {
-    "PENDING",
-    "RUNNING",
-    "RESOLVING_SPEC",
-    "MATCHING",
-    "VALIDATING",
-    "COMPLETED",
-    "NEEDS_REVIEW",
-    "FAILED",
+
+DIESEL_API_RANK = {
+    "CF": 1,
+    "CF-4": 2,
+    "CG-4": 3,
+    "CH-4": 4,
+    "CI-4": 5,
+    "CJ-4": 6,
+    "CK-4": 7,
 }
-SPEC_STATUSES = {"PENDING", "VERIFIED", "NEEDS_REVIEW", "REJECTED"}
-COMPATIBILITY_TYPES = {"RECOMMENDED", "COMPATIBLE", "CONDITIONAL"}
-REVIEW_STATUSES = {"PENDING", "APPROVED", "REJECTED", "NEEDS_REVIEW"}
-CREATED_BY = {"SYSTEM", "AGENT", "ADMIN"}
+from app.domain.enums import CompatibilityType, CreatedBy, JobStatus
+
+JOB_STATUSES = {item.value for item in JobStatus}
+COMPATIBILITY_TYPES = {item.value for item in CompatibilityType}
+CREATED_BY = {item.value for item in CreatedBy}

@@ -1,18 +1,19 @@
+import logging
 import re
 import unicodedata
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
-from app.core.constants import API_RANK
-from app.models import EngineOil, EngineSpec
-from app.services.matching.rules import api_satisfies
+from app.domain.oil_requirement import OilRequirement
+from app.models import EngineOil
+from app.services.matching.rules import (
+    api_satisfies,
+    extract_api_categories,
+    normalize_fuel_type,
+)
 from app.services.matching.scoring import MatchWeights, capped_score
 
 _SAE_PREFIX = re.compile(r"^(?:SAE(?:\s+J\s*300)?\b[\s:._-]*)+", re.IGNORECASE)
-_API_PREFIX = re.compile(
-    r"^(?:(?:MINIMUM|MIN)\s+)?API\b[\s:._-]*", re.IGNORECASE
-)
-_API_CATEGORY = re.compile(r"(?<![A-Z0-9])(?:SN\s+PLUS|S[A-Z])(?![A-Z0-9])")
 _ACEA_PREFIX = re.compile(r"^ACEA\b[\s:._-]*", re.IGNORECASE)
 _NON_ALPHANUMERIC = re.compile(r"[^A-Z0-9]+")
 
@@ -31,21 +32,6 @@ def _compact(value: str) -> str:
 def _normalize_sae(value: str | None) -> str:
     normalized = _SAE_PREFIX.sub("", _comparison_text(value))
     return _compact(normalized)
-
-
-def _normalize_api(value: str | None) -> str:
-    normalized = _API_PREFIX.sub("", _comparison_text(value))
-    normalized = re.sub(r"\bSN\s*\+", "SN PLUS", normalized)
-    normalized = re.sub(r"[._-]+", " ", normalized)
-
-    # Extract known gasoline categories so additional labels (for example
-    # "API Service Category") cannot make equivalent API values compare unequal.
-    categories: list[str] = []
-    for match in _API_CATEGORY.finditer(normalized):
-        category = " ".join(match.group().split())
-        if category in API_RANK and category not in categories:
-            categories.append(category)
-    return "/".join(categories)
 
 
 def _normalize_acea(value: str | None) -> str:
@@ -98,49 +84,64 @@ class DeterministicMatcher:
     def __init__(self, weights: MatchWeights | None = None):
         self.weights = weights or MatchWeights()
 
-    def score(self, spec: EngineSpec, oil: EngineOil) -> Candidate | None:
+    def score(self, requirement: OilRequirement, oil: EngineOil) -> Candidate | None:
         points, reasons = [], []
         oil_sae = _normalize_sae(oil.sae_viscosity)
         if oil_sae and oil_sae in {
-            _normalize_sae(value) for value in spec.recommended_sae
+            _normalize_sae(value) for value in requirement.recommended_sae
         }:
             points.append(self.weights.recommended_sae)
             reasons.append("recommended SAE")
         elif oil_sae and oil_sae in {
-            _normalize_sae(value) for value in spec.alternative_sae
+            _normalize_sae(value) for value in requirement.alternative_sae
         }:
             points.append(self.weights.alternative_sae)
             reasons.append("alternative SAE")
         else:
             return None
-        oil_api = _normalize_api(oil.api_spec)
-        minimum_api = _normalize_api(spec.minimum_api)
-        if spec.minimum_api and (
-            not minimum_api or not api_satisfies(oil_api, minimum_api)
+        fuel_type = normalize_fuel_type(requirement.fuel_type)
+        if requirement.minimum_api and not extract_api_categories(requirement.minimum_api):
+            logging.getLogger(__name__).warning(
+                "Unknown minimum API category %r", requirement.minimum_api
+            )
+            return None
+        if requirement.minimum_api and not api_satisfies(
+            oil.api_spec, requirement.minimum_api, fuel_type
         ):
             return None
-        if api_satisfies(oil_api, minimum_api):
+        if requirement.minimum_api:
             points.append(self.weights.api)
             reasons.append("API requirement satisfied")
-        if _normalized_overlap(
-            [oil.acea_spec] if oil.acea_spec else [],
-            spec.acea_specs,
+            reasons.append(
+                f"API {oil.api_spec} satisfies {requirement.minimum_api} minimum"
+            )
+        else:
+            points.append(self.weights.api)
+        acea_matches = _normalized_overlap(
+            oil.acea_specs or [],
+            requirement.acea_specs,
             _normalize_acea,
-        ):
+        )
+        if requirement.acea_specs and not acea_matches:
+            return None
+        if acea_matches:
             points.append(self.weights.acea)
             reasons.append("ACEA match")
-        if _normalized_overlap(
-            oil.oem_approvals, spec.oem_approvals, _normalize_oem_approval
-        ):
+        oem_matches = _normalized_overlap(
+            oil.oem_approvals or [], requirement.oem_approvals, _normalize_oem_approval
+        )
+        if requirement.oem_approvals and not oem_matches:
+            return None
+        if oem_matches:
             points.append(self.weights.oem)
             reasons.append("OEM approval match")
         return Candidate(oil, capped_score(*points), reasons)
 
     def find_candidates(
-        self, engine_spec: EngineSpec, oils: list[EngineOil]
+        self, requirement: OilRequirement, oils: list[EngineOil]
     ) -> list[Candidate]:
         return sorted(
-            (c for oil in oils if (c := self.score(engine_spec, oil))),
+            (c for oil in oils if (c := self.score(requirement, oil))),
             key=lambda c: c.score,
             reverse=True,
         )

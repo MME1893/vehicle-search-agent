@@ -1,29 +1,32 @@
-from pydantic import BaseModel, Field, field_validator
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.domain.enums import JobStatus
 from app.schemas.common import ORMModel
-from app.core.constants import JOB_STATUSES
 
 
 class AgentJobCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     vehicle_id: int
-    agent_version: str | None = None
+    agent_version: str | None = Field(None, max_length=80)
 
 
 class AgentJobRead(ORMModel):
     id: int
     vehicle_id: int
-    status: str
+    research_run_id: int | None
+    status: JobStatus
     current_step: str | None
     attempts: int
-    error_message: str | None
+    status_reason: str | None
     agent_version: str | None
+    started_at: datetime | None
+    completed_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
 
 
 class AgentJobUpdate(BaseModel):
-    status: str
-
-    @field_validator("status")
-    @classmethod
-    def valid_status(cls, v: str) -> str:
-        if v not in JOB_STATUSES:
-            raise ValueError("invalid job status")
-        return v
+    status: JobStatus

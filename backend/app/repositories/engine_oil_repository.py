@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import re
-import unicodedata
-
 from sqlalchemy import select
 
+from app.domain.identity import engine_oil_identity_key
 from app.models import EngineOil
 from app.repositories.base import Repository
 
@@ -30,37 +28,26 @@ class EngineOilRepository(Repository[EngineOil]):
     def list_all(self):
         return list(self.db.scalars(select(EngineOil).order_by(EngineOil.id)))
 
-    @staticmethod
-    def _normalize_identity(value: str) -> str:
-        value = unicodedata.normalize("NFKC", value).casefold()
-        return re.sub(r"[^\w]+", "", value)
-
-    @staticmethod
-    def _normalize_sae(value: str) -> str:
-        return re.sub(r"[^0-9W]", "", value.upper())
-
     def find_researched_product(
-        self, brand: str, name: str, sae_viscosity: str, api_spec: str | None = None
+        self,
+        brand: str,
+        name: str,
+        sae_viscosity: str,
+        api_spec: str | None = None,
+        package_volume_liters=None,
     ) -> EngineOil | None:
-        brand_key = self._normalize_identity(brand)
-        name_key = self._normalize_identity(name)
-        sae_key = self._normalize_sae(sae_viscosity)
-        matches = [
-            oil
-            for oil in self.list_all()
-            if self._normalize_identity(oil.brand) == brand_key
-            and self._normalize_identity(oil.name) == name_key
-            and self._normalize_sae(oil.sae_viscosity) == sae_key
-        ]
-        if not matches:
-            return None
-        if api_spec:
-            api_key = self._normalize_identity(api_spec)
-            exact_api = [
-                oil
-                for oil in matches
-                if oil.api_spec and self._normalize_identity(oil.api_spec) == api_key
-            ]
-            if exact_api:
-                return exact_api[0]
-        return matches[0]
+        # API is deliberately not part of the stable business identity.
+        return self.db.scalar(
+            select(EngineOil).where(
+                EngineOil.identity_key
+                == engine_oil_identity_key(
+                    brand, name, sae_viscosity, package_volume_liters
+                )
+            )
+        )
+
+    def find_by_identity(self, data: dict) -> EngineOil | None:
+        return self.find_researched_product(
+            data["brand"], data["name"], data["sae_viscosity"],
+            data.get("api_spec"), data.get("package_volume_liters"),
+        )

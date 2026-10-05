@@ -8,18 +8,18 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.agents.opencode_client import OpenCodeClient, OpenCodeError
-from app.agents.opencode_research_agent import OpenCodeResearchAgent
-from app.agents.research_agent import ResearchExecutionError
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.research.providers.opencode.client import OpenCodeClient, OpenCodeError
+from app.research.providers.opencode.provider import OpenCodeResearchProvider
+from app.research.providers.openrouter.provider import ResearchExecutionError
 
 
 async def main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
     client = OpenCodeClient(settings)
-    agent = OpenCodeResearchAgent(client)
+    agent = OpenCodeResearchProvider(client)
     vehicle = SimpleNamespace(
         id=312,
         manufacturer="Peugeot",

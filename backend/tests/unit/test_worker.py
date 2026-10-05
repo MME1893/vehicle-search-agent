@@ -2,12 +2,16 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.agents.client import OpenRouterProviderError
-from app.models import AgentJob
+from app.db.base import Base
+from app.models import AgentJob, Compatibility, EngineOil, ResearchRun
 from app.repositories.agent_job_repository import AgentJobRepository
 from app.repositories.vehicle_repository import VehicleRepository
+from app.research import ResearchService
+from app.research.providers.openrouter.client import OpenRouterProviderError
+from app.research.schemas import EngineOilResearchResult, ResearchExecution
 from app.workers import agent_worker
 from app.workers.agent_worker import AgentWorker
 
@@ -45,7 +49,7 @@ def jobs_for(item):
 
     def mark_failed(target, message):
         target.status = "FAILED"
-        target.error_message = message
+        target.status_reason = message
         return target
 
     jobs.mark_running.side_effect = mark_running
@@ -103,7 +107,7 @@ async def test_worker_marks_provider_error_failed():
     jobs.mark_failed.assert_called_once_with(item, "OpenRouter connection failed")
     assert item.attempts == 1
     assert item.status == "FAILED"
-    assert item.error_message == "OpenRouter connection failed"
+    assert item.status_reason == "OpenRouter connection failed"
     assert result is item
 
 
@@ -195,4 +199,85 @@ async def test_background_initialization_failure_is_stored(db, monkeypatch):
     assert saved.started_at is not None
     assert saved.completed_at is not None
     assert saved.attempts == 1
-    assert saved.error_message == "provider initialization failed"
+    assert saved.status_reason == "provider initialization failed"
+
+
+@pytest.mark.asyncio
+async def test_progress_commit_cannot_commit_partial_research_transaction(
+    tmp_path, monkeypatch
+):
+    engine = create_engine(f"sqlite:///{tmp_path / 'worker.db'}")
+    Base.metadata.create_all(engine)
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+    with sessions() as seed:
+        vehicle = VehicleRepository(seed).create(
+            {"manufacturer": "M", "model": "V", "engine_code": "TU5"}
+        )
+        pending = AgentJobRepository(seed).create({"vehicle_id": vehicle.id})
+        vehicle_id, job_id = vehicle.id, pending.id
+        seed.commit()
+
+    research = EngineOilResearchResult.model_validate(
+        {
+            "research_status": "FOUND",
+            "vehicle_id": vehicle_id,
+            "engine_code": "TU5",
+            "recommended_sae": ["10W-40"],
+            "minimum_api": "SL",
+            "confidence": 0.95,
+            "sources": [
+                {
+                    "title": "Manual",
+                    "url": "https://example.test/manual",
+                    "source_type": "OFFICIAL_MANUAL",
+                    "supported_claims": ["SAE 10W-40", "API SL"],
+                }
+            ],
+            "recommended_products": [
+                {
+                    "brand": "New Brand",
+                    "name": "New Oil",
+                    "sae_viscosity": "10W-40",
+                    "api_spec": "SN",
+                    "source_urls": ["https://example.test/oil"],
+                }
+            ],
+        }
+    )
+
+    class Provider:
+        provider_name = "test"
+
+        async def research_vehicle_oil_spec(self, vehicle):
+            return ResearchExecution(research=research, provider="test")
+
+        async def aclose(self):
+            return None
+
+    class FailingResearchService(ResearchService):
+        def persist_compatibilities(self, outcome):
+            raise RuntimeError("compatibility persistence failed")
+
+    opened = []
+
+    def open_session():
+        session = sessions()
+        opened.append(session)
+        return session
+
+    monkeypatch.setattr(agent_worker, "SessionLocal", open_session)
+    monkeypatch.setattr(
+        agent_worker, "get_settings", lambda: SimpleNamespace(research_provider="test", matching_strategy="deterministic", research_min_confidence=0.8)
+    )
+    monkeypatch.setattr(agent_worker, "create_research_provider", lambda settings: Provider())
+    monkeypatch.setattr(agent_worker, "ResearchService", FailingResearchService)
+
+    result = await agent_worker.run_agent_job(job_id)
+
+    assert len(opened) == 2 and opened[0] is not opened[1]
+    with sessions() as check:
+        assert check.get(AgentJob, job_id).status == "FAILED"
+        assert check.query(ResearchRun).count() == 0
+        assert check.query(EngineOil).count() == 0
+        assert check.query(Compatibility).count() == 0
+    assert result.status == "FAILED"

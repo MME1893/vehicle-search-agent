@@ -6,12 +6,12 @@ import httpx
 import pytest
 from openai import APITimeoutError
 
-from app.agents.client import (
+from app.core.config import Settings
+from app.research.providers.openrouter.client import (
     OpenRouterClient,
     OpenRouterConfigurationError,
     OpenRouterProviderError,
 )
-from app.core.config import Settings
 
 
 def configured_settings(**values):
@@ -33,7 +33,7 @@ def test_missing_api_key_or_model_is_configuration_error():
 
 def test_sdk_receives_base_url_timeout_and_retries(monkeypatch):
     factory = MagicMock()
-    monkeypatch.setattr("app.agents.client.AsyncOpenAI", factory)
+    monkeypatch.setattr("app.research.providers.openrouter.client.AsyncOpenAI", factory)
     OpenRouterClient(configured_settings(openrouter_max_retries=4))
     kwargs = factory.call_args.kwargs
     assert kwargs["api_key"] == "test-key"
@@ -44,7 +44,7 @@ def test_sdk_receives_base_url_timeout_and_retries(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_completion_passes_model_messages_and_tools(caplog):
-    caplog.set_level(logging.INFO, logger="app.agents.client")
+    caplog.set_level(logging.INFO, logger="app.research.providers.openrouter.client")
     create = AsyncMock(return_value=object())
     sdk = SimpleNamespace(
         chat=SimpleNamespace(completions=SimpleNamespace(create=create))

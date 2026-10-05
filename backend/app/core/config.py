@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.agents.errors import ResearchProviderConfigurationError
+from app.research.errors import ResearchProviderConfigurationError
 
 ROOT_DIR = pathlib.Path(__file__).resolve().parents[3]
 ENV_FILE = ROOT_DIR / ".env"
@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     opencode_timeout_seconds: float = 90
     opencode_model: str | None = None
     opencode_server_url: str | None = None
+    opencode_debug_logs: bool = False
 
     # Gemini
     gemini_api_key: str | None = None

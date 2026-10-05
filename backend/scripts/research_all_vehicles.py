@@ -12,12 +12,12 @@ from sqlalchemy import select
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.agents.errors import ResearchProviderError
-from app.agents.factory import create_research_provider
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.models import Vehicle
-from app.services.research import ResearchService
+from app.research import ResearchService
+from app.research.errors import ResearchProviderError
+from app.research.factory import create_research_provider
 from scripts.research_vehicle import create_script_session
 
 
@@ -45,14 +45,11 @@ class VehicleResearchWorker:
 
     async def process(self, vehicle_id: int) -> str:
         try:
-            outcome = await self.service.research_vehicle(vehicle_id)
+            outcome = await self.service.execute_vehicle_research(vehicle_id, persist=True)
             if outcome.evaluation.needs_review:
-                self.service.persist_research_run(outcome)
                 print(f"vehicle_id={vehicle_id} status=NEEDS_REVIEW", flush=True)
                 return "needs_review"
-            self.service.persist_engine_spec(outcome)
-            self.service.find_candidates(outcome)
-            saved = self.service.persist_compatibilities(outcome)
+            saved = len(outcome.compatibility_ids)
             print(
                 f"vehicle_id={vehicle_id} status=COMPLETED compatibilities={saved}",
                 flush=True,

@@ -34,7 +34,7 @@ class AgentJobRepository(Repository[AgentJob]):
                 "attempts": job.attempts + 1,
                 "started_at": job.started_at or datetime.now(UTC),
                 "completed_at": None,
-                "error_message": None,
+                "status_reason": None,
             },
         )
 
@@ -47,7 +47,7 @@ class AgentJobRepository(Repository[AgentJob]):
             {
                 "status": "FAILED",
                 "current_step": job.current_step,
-                "error_message": (message or "agent job failed")[:2000],
+                "status_reason": (message or "agent job failed")[:2000],
                 "completed_at": datetime.now(UTC),
             },
         )
@@ -58,7 +58,7 @@ class AgentJobRepository(Repository[AgentJob]):
             {
                 "status": "NEEDS_REVIEW",
                 "current_step": "evidence_review",
-                "error_message": message,
+                "status_reason": message,
                 "completed_at": datetime.now(UTC),
             },
         )

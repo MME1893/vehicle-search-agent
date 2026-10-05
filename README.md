@@ -38,7 +38,7 @@ repositories ----> SQLAlchemy models ----> PostgreSQL
 The standard CRUD and job routes are under `/api/v1`. The research audit route is:
 
 ```http
-GET /api/research/vehicles/{vehicle_id}/history
+GET /api/v1/vehicles/{vehicle_id}/research-history
 ```
 
 It returns the vehicle and its chronological research timeline. Each entry
@@ -216,8 +216,27 @@ python scripts/test_openrouter_web.py
 Read a vehicle's stored research history:
 
 ```powershell
-curl.exe http://localhost:8000/api/research/vehicles/1/history
+curl.exe http://localhost:8000/api/v1/vehicles/1/research-history
 ```
+
+## PostgreSQL migration validation
+
+Start PostgreSQL and run the schema/drift checks from `backend`:
+
+```powershell
+docker compose up -d postgres
+$env:DATABASE_URL = "postgresql+psycopg://oil:oil@localhost:5432/engine_oil"
+uv run alembic upgrade head
+uv run alembic check
+$env:POSTGRES_TEST_DATABASE_URL = $env:DATABASE_URL
+uv run pytest tests/integration/test_postgresql.py -q
+```
+
+Use a disposable database when validating `0003 -> head`: upgrade it to
+`0003_research_provenance`, load representative legacy rows, then run
+`uv run alembic upgrade head`. The migration preserves compatibility history
+and fails explicitly on duplicate normalized vehicle identities or duplicate
+research-run compatibility rows; it never merges records.
 
 ## JSON data import
 

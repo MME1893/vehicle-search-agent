@@ -21,9 +21,7 @@ def rows(path: str, collection_key: str | None = None) -> list[dict]:
         return list(csv.DictReader(stream))
 
 
-def list_value(value):
-    if isinstance(value, list):
-        return value
+def list_value(value, field_name: str):
     if value is None or value == "":
         return []
     if isinstance(value, str):
@@ -32,5 +30,18 @@ def list_value(value):
         except json.JSONDecodeError:
             parsed = [item.strip() for item in value.split("|") if item.strip()]
         if isinstance(parsed, list):
-            return parsed
-    raise ValueError("oem_approvals must be a list")
+            value = parsed
+        else:
+            raise TypeError(f"{field_name} must be a list")
+    if not isinstance(value, list):
+        raise TypeError(f"{field_name} must be a list")
+    if not all(isinstance(item, str) for item in value):
+        raise ValueError(f"{field_name} must contain only strings")
+    normalized = []
+    seen = set()
+    for item in value:
+        item = item.strip()
+        if item and item not in seen:
+            normalized.append(item)
+            seen.add(item)
+    return normalized

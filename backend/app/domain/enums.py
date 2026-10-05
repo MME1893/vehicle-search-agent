@@ -1,0 +1,39 @@
+from enum import StrEnum
+
+
+class JobStatus(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
+    FAILED = "FAILED"
+
+
+class EvaluationStatus(StrEnum):
+    ACCEPTED = "ACCEPTED"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
+    REJECTED = "REJECTED"
+
+
+class CompatibilityType(StrEnum):
+    RECOMMENDED = "RECOMMENDED"
+    COMPATIBLE = "COMPATIBLE"
+    CONDITIONAL = "CONDITIONAL"
+
+
+class MatchMethod(StrEnum):
+    MANUAL = "MANUAL"
+    DIRECT_RESEARCH_PRODUCT = "DIRECT_RESEARCH_PRODUCT"
+    DETERMINISTIC_SPEC_MATCH = "DETERMINISTIC_SPEC_MATCH"
+    PROVIDER_CATALOG_MATCH = "PROVIDER_CATALOG_MATCH"
+
+
+class CreatedBy(StrEnum):
+    SYSTEM = "SYSTEM"
+    AGENT = "AGENT"
+    ADMIN = "ADMIN"
+
+
+class ResearchStatus(StrEnum):
+    FOUND = "FOUND"
+    INSUFFICIENT = "INSUFFICIENT"

@@ -1,15 +1,22 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+
+from app.api.errors import raise_conflict
 from app.db.session import get_db
 from app.repositories.vehicle_repository import VehicleRepository
 from app.schemas.vehicle import VehicleCreate, VehicleRead, VehicleUpdate
 
 router = APIRouter(prefix="/vehicles", tags=["vehicles"])
+DB_DEPENDENCY = Depends(get_db)
 
 
 @router.post("", response_model=VehicleRead, status_code=201)
-def create(data: VehicleCreate, db: Session = Depends(get_db)):
-    return VehicleRepository(db).create(data.model_dump())
+def create(data: VehicleCreate, db: Session = DB_DEPENDENCY):
+    try:
+        return VehicleRepository(db).create(data.model_dump())
+    except IntegrityError as exc:
+        raise_conflict(db, "vehicle already exists", exc)
 
 
 @router.get("")
@@ -18,7 +25,7 @@ def list_(
     engine_code: str | None = None,
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    db: Session = Depends(get_db),
+    db: Session = DB_DEPENDENCY,
 ):
     items, total = VehicleRepository(db).list(manufacturer, engine_code, offset, limit)
     return {
@@ -30,7 +37,7 @@ def list_(
 
 
 @router.get("/{vehicle_id}", response_model=VehicleRead)
-def get(vehicle_id: int, db: Session = Depends(get_db)):
+def get(vehicle_id: int, db: Session = DB_DEPENDENCY):
     item = VehicleRepository(db).get_by_id(vehicle_id)
     if not item:
         raise HTTPException(404, "vehicle not found")
@@ -38,19 +45,25 @@ def get(vehicle_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{vehicle_id}", response_model=VehicleRead)
-def update(vehicle_id: int, data: VehicleUpdate, db: Session = Depends(get_db)):
+def update(vehicle_id: int, data: VehicleUpdate, db: Session = DB_DEPENDENCY):
     repo = VehicleRepository(db)
     item = repo.get_by_id(vehicle_id)
     if not item:
         raise HTTPException(404, "vehicle not found")
-    return repo.update(item, data.model_dump(exclude_unset=True))
+    try:
+        return repo.update(item, data.model_dump(exclude_unset=True))
+    except IntegrityError as exc:
+        raise_conflict(db, "vehicle already exists", exc)
 
 
 @router.delete("/{vehicle_id}", status_code=204)
-def delete(vehicle_id: int, db: Session = Depends(get_db)):
+def delete(vehicle_id: int, db: Session = DB_DEPENDENCY):
     repo = VehicleRepository(db)
     item = repo.get_by_id(vehicle_id)
     if not item:
         raise HTTPException(404, "vehicle not found")
-    repo.delete(item)
+    try:
+        repo.delete(item)
+    except IntegrityError as exc:
+        raise_conflict(db, "vehicle is referenced by audit history", exc)
     return Response(status_code=204)
