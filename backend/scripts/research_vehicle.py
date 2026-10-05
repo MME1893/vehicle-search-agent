@@ -11,15 +11,15 @@ from sqlalchemy.orm import sessionmaker
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.agents.errors import ResearchProviderError
-from app.agents.factory import create_research_provider
-from app.agents.gemini_research_adapter import GeminiResearchAdapter
-from app.agents.opencode_research_agent import OpenCodeResearchAgent
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.session import SessionLocal
 from app.repositories.vehicle_repository import VehicleRepository
-from app.services.research import ResearchService
+from app.research import ResearchService
+from app.research.errors import ResearchProviderError
+from app.research.factory import create_research_provider
+from app.research.providers.gemini.provider import GeminiResearchProvider
+from app.research.providers.opencode.provider import OpenCodeResearchProvider
 
 
 def create_script_session():
@@ -73,7 +73,7 @@ async def main(
             print(f"ERROR: {exc}", flush=True)
             return 1
 
-        if isinstance(provider, GeminiResearchAdapter):
+        if isinstance(provider, GeminiResearchProvider):
             print(f"Model: {provider.client.model}", flush=True)
             print("Google Search: enabled", flush=True)
             if settings.matching_strategy == "provider_catalog":
@@ -81,7 +81,7 @@ async def main(
                     f"Catalog oils sent: {len(ResearchService(db, provider, settings).oils.list_all())}",
                     flush=True,
                 )
-        elif isinstance(provider, OpenCodeResearchAgent):
+        elif isinstance(provider, OpenCodeResearchProvider):
             version = await provider.client.get_version()
             print(f"OpenCode version: {version}", flush=True)
             print(f"Agent: {provider.client.agent}", flush=True)
@@ -107,7 +107,7 @@ async def main(
             )
         except (ResearchProviderError, LookupError) as exc:
             elapsed = time.perf_counter() - started
-            if isinstance(provider, GeminiResearchAdapter):
+            if isinstance(provider, GeminiResearchProvider):
                 if provider.client.last_grounded_duration is not None:
                     print(
                         "Stage 1 duration: "
@@ -131,7 +131,7 @@ async def main(
             return 1
         elapsed = time.perf_counter() - started
 
-        if isinstance(provider, GeminiResearchAdapter):
+        if isinstance(provider, GeminiResearchProvider):
             execution = outcome.execution
             print(
                 f"Stage 1 duration: {(execution.stage1_duration_ms or 0) / 1000:.1f}s",
@@ -210,7 +210,7 @@ async def main(
             print("\nDry run: nothing was saved.", flush=True)
         return 0
     finally:
-        if isinstance(provider, GeminiResearchAdapter):
+        if isinstance(provider, GeminiResearchProvider):
             await provider.client.aclose()
         db.close()
         if local_engine is not None:

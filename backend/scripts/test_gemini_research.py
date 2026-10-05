@@ -6,11 +6,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.agents.errors import ResearchProviderError
-from app.agents.gemini_client import GeminiClient
-from app.agents.gemini_research_adapter import GeminiResearchAdapter
 from app.core.config import get_settings
 from app.models import Vehicle
+from app.research.errors import ResearchProviderError
+from app.research.providers.gemini.client import GeminiClient
+from app.research.providers.gemini.provider import GeminiResearchProvider
 
 
 def print_metrics(client: GeminiClient) -> None:
@@ -46,7 +46,7 @@ async def main() -> int:
         fuel_type="gasoline",
     )
     client = GeminiClient(settings)
-    adapter = GeminiResearchAdapter(client)
+    adapter = GeminiResearchProvider(client)
     print(f"Model: {client.model}", flush=True)
     print("Google Search: enabled", flush=True)
     started = time.perf_counter()

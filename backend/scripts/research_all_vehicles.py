@@ -12,12 +12,12 @@ from sqlalchemy import select
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.agents.errors import ResearchProviderError
-from app.agents.factory import create_research_provider
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.models import Vehicle
-from app.services.research import ResearchService
+from app.research import ResearchService
+from app.research.errors import ResearchProviderError
+from app.research.factory import create_research_provider
 from scripts.research_vehicle import create_script_session
 
 
