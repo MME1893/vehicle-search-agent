@@ -9,12 +9,12 @@ from google import genai
 from google.genai import errors, types
 from pydantic import BaseModel
 
-from app.agents.errors import (
+from app.core.config import Settings
+from app.research.errors import (
     GeminiProviderError,
     ResearchProviderConfigurationError,
     ResearchProviderTimeoutError,
 )
-from app.core.config import Settings
 
 logger = logging.getLogger(__name__)
 

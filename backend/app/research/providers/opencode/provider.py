@@ -1,21 +1,24 @@
 import logging
 import time
 
-from app.agents.opencode_client import OpenCodeClient
-from app.agents.parser import ResearchResultParseError, parse_research_result
-from app.agents.prompts import build_opencode_vehicle_prompt
-from app.agents.research_agent import ResearchExecutionError
-from app.agents.schemas import ResearchExecution
 from app.models import Vehicle
+from app.research.parser import ResearchResultParseError, parse_research_result
+from app.research.prompts.opencode import build_opencode_vehicle_prompt
+from app.research.providers.opencode.client import OpenCodeClient
+from app.research.providers.openrouter.provider import ResearchExecutionError
+from app.research.schemas import ResearchExecution
 
 logger = logging.getLogger(__name__)
 
 
-class OpenCodeResearchAgent:
+class OpenCodeResearchProvider:
     provider_name = "opencode"
 
     def __init__(self, client: OpenCodeClient):
         self.client = client
+
+    async def aclose(self) -> None:
+        await self.client.aclose()
 
     @staticmethod
     def build_vehicle_prompt(vehicle: Vehicle) -> str:

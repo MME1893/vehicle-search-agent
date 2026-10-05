@@ -1,33 +1,36 @@
 import logging
 
-from app.agents.errors import GeminiProviderError
-from app.agents.gemini_client import GeminiClient
-from app.agents.parser import (
+from app.models import EngineOil, Vehicle
+from app.research.errors import GeminiProviderError
+from app.research.parser import (
     ResearchResultParseError,
     parse_catalog_research_result,
     parse_research_result,
 )
-from app.agents.prompts import (
+from app.research.prompts.gemini import (
     build_catalog_extraction_prompt,
     build_catalog_research_prompt,
     build_vehicle_extraction_prompt,
     build_vehicle_research_prompt,
 )
-from app.agents.schemas import (
+from app.research.providers.gemini.client import GeminiClient
+from app.research.schemas import (
     CatalogResearchResult,
     EngineOilResearchResult,
     ResearchExecution,
 )
-from app.models import EngineOil, Vehicle
 
 logger = logging.getLogger(__name__)
 
 
-class GeminiResearchAdapter:
+class GeminiResearchProvider:
     provider_name = "gemini"
 
     def __init__(self, client: GeminiClient):
         self.client = client
+
+    async def aclose(self) -> None:
+        await self.client.aclose()
 
     @staticmethod
     def _validate_identity(vehicle: Vehicle, result: EngineOilResearchResult) -> None:

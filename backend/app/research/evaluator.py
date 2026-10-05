@@ -1,6 +1,6 @@
 from urllib.parse import urlparse
 
-from app.agents.schemas import (
+from app.research.schemas import (
     EngineOilResearchResult,
     ResearchEvaluation,
     ResearchSource,

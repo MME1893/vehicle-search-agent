@@ -84,7 +84,7 @@ Model: {vehicle.model}
 Trim: {vehicle.trim or "unknown"}
 Production years: {year_from}-{year_to}
 Engine code: {vehicle.engine_code or "unknown"}
-Engine displacement: {vehicle.engine_displacement or "unknown"} cc
+Engine displacement: {vehicle.engine_displacement or "unknown"}
 Fuel type: {vehicle.fuel_type or "unknown"}
 Market: Iran"""
 
@@ -276,7 +276,7 @@ Model: {vehicle.model}
 Trim / variant: {vehicle.trim or "unknown"}
 Production years: {year_from}-{year_to}
 Engine code: {vehicle.engine_code or "unknown"}
-Engine displacement: {vehicle.engine_displacement or "unknown"} cc
+Engine displacement: {vehicle.engine_displacement or "unknown"}
 Fuel type: {vehicle.fuel_type or "unknown"}
 
 Search budget:

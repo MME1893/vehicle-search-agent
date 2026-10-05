@@ -2,13 +2,13 @@ import json
 import logging
 from typing import Any
 
-from app.agents.client import OpenRouterClient
-from app.agents.errors import ResearchProviderError
-from app.agents.parser import ResearchResultParseError, parse_research_result
-from app.agents.prompts import REPAIR_PROMPT, SYSTEM_PROMPT
-from app.agents.schemas import ResearchExecution
 from app.core.config import Settings
 from app.models import Vehicle
+from app.research.errors import ResearchProviderError
+from app.research.parser import ResearchResultParseError, parse_research_result
+from app.research.prompts.openrouter import REPAIR_PROMPT, SYSTEM_PROMPT
+from app.research.providers.openrouter.client import OpenRouterClient
+from app.research.schemas import ResearchExecution
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +17,15 @@ class ResearchExecutionError(ResearchProviderError):
     pass
 
 
-class ResearchAgent:
+class OpenRouterResearchProvider:
     provider_name = "openrouter"
 
     def __init__(self, client: OpenRouterClient, settings: Settings):
         self.client = client
         self.web_search_enabled = settings.research_web_search_enabled
+
+    async def aclose(self) -> None:
+        await self.client.aclose()
 
     @staticmethod
     def _vehicle_payload(vehicle: Vehicle) -> dict[str, Any]:

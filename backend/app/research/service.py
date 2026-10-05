@@ -3,17 +3,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from app.agents.errors import ResearchProviderConfigurationError
-from app.agents.evaluator import evaluate_research
-from app.agents.protocols import CatalogResearchProvider, ResearchProvider
-from app.agents.schemas import (
-    CatalogResearchResult,
-    EngineOilResearchResult,
-    ProviderOilMatch,
-    ResearchedOilProduct,
-    ResearchEvaluation,
-    ResearchExecution,
-)
 from app.core.config import Settings
 from app.domain.enums import EvaluationStatus, MatchMethod
 from app.domain.oil_requirement import OilRequirement
@@ -22,6 +11,17 @@ from app.repositories.compatibility_repository import CompatibilityRepository
 from app.repositories.engine_oil_repository import EngineOilRepository
 from app.repositories.research_run_repository import ResearchRunRepository
 from app.repositories.vehicle_repository import VehicleRepository
+from app.research.contracts import ResearchProvider
+from app.research.errors import ResearchProviderConfigurationError
+from app.research.evaluator import evaluate_research
+from app.research.schemas import (
+    CatalogResearchResult,
+    EngineOilResearchResult,
+    ProviderOilMatch,
+    ResearchedOilProduct,
+    ResearchEvaluation,
+    ResearchExecution,
+)
 from app.services.compatibility.compatibility_service import CompatibilityService
 from app.services.matching.matcher import Candidate, DeterministicMatcher
 
@@ -121,7 +121,7 @@ class ResearchService:
         if progress_callback:
             progress_callback("researching")
         if self.settings.matching_strategy == "provider_catalog":
-            if not isinstance(self.provider, CatalogResearchProvider):
+            if not hasattr(self.provider, "research_vehicle_with_catalog"):
                 raise ResearchProviderConfigurationError(
                     "MATCHING_STRATEGY=provider_catalog requires a catalog-capable provider"
                 )
@@ -202,6 +202,7 @@ class ResearchService:
     def _build_requirement(vehicle: Vehicle, result: EngineOilResearchResult) -> OilRequirement:
         return OilRequirement(
             engine_code=result.engine_code or vehicle.engine_code,
+            fuel_type=vehicle.fuel_type,
             recommended_sae=list(result.recommended_sae),
             alternative_sae=list(result.alternative_sae),
             minimum_api=result.minimum_api,
@@ -283,7 +284,7 @@ class ResearchService:
                     match.match_score,
                     match.confidence_score,
                     "; ".join(match.reasons),
-                    MatchMethod.DIRECT_RESEARCH_PRODUCT,
+                    MatchMethod.PROVIDER_CATALOG_MATCH,
                 )
                 for match in outcome.provider_matches
             ]

@@ -2,7 +2,7 @@ import json
 
 from pydantic import ValidationError
 
-from app.agents.schemas import CatalogResearchResult, EngineOilResearchResult
+from app.research.schemas import CatalogResearchResult, EngineOilResearchResult
 
 
 class ResearchResultParseError(ValueError):

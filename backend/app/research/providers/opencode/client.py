@@ -14,8 +14,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from app.agents.errors import ResearchProviderError, ResearchProviderTimeoutError
 from app.core.config import ROOT_DIR, Settings
+from app.research.errors import ResearchProviderError, ResearchProviderTimeoutError
 
 logger = logging.getLogger(__name__)
 _ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -175,6 +175,9 @@ class OpenCodeClient:
         self.last_run_artifacts: OpenCodeRunArtifacts | None = None
         self.last_tools_used: list[str] = []
         self._version: str | None = None
+
+    async def aclose(self) -> None:
+        """OpenCode subprocesses are per-call and own no persistent client."""
 
     def _prepare_runtime_workspace(self, runtime_directory: Path) -> None:
         source_agent = ROOT_DIR / ".opencode" / "agents" / f"{self.agent}.md"

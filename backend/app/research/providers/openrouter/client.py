@@ -11,12 +11,12 @@ from openai import (
     RateLimitError,
 )
 
-from app.agents.errors import (
+from app.core.config import Settings
+from app.research.errors import (
     ResearchProviderConfigurationError,
     ResearchProviderError,
     ResearchProviderTimeoutError,
 )
-from app.core.config import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,9 @@ class OpenRouterClient:
         )
         self.model = settings.openrouter_model
         self.timeout_seconds = settings.openrouter_timeout_seconds
+
+    async def aclose(self) -> None:
+        await self.client.close()
 
     async def create_completion(
         self,

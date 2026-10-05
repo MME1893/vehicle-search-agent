@@ -4,14 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.research.history import ResearchHistoryService
 from app.schemas.research_history import VehicleResearchHistory
-from app.services.research.history_service import ResearchHistoryService
 
-router = APIRouter(prefix="/api/research", tags=["research"])
+router = APIRouter(tags=["research"])
 
 
 @router.get(
-    "/vehicles/{vehicle_id}/history",
+    "/vehicles/{vehicle_id}/research-history",
     response_model=VehicleResearchHistory,
 )
 def get_vehicle_research_history(
