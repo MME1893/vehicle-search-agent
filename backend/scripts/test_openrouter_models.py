@@ -21,8 +21,19 @@ from app.research.providers.openrouter.provider import OpenRouterResearchProvide
 DEFAULT_MODELS = (
     "qwen/qwen3.8-27b:free",
     "apodex/apodex-1.1-mini:free",
-)
 
+    # Strong new candidates
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "dots-studio/dots-3-note-preview:free",
+    "google/gemma-4-31b-it:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "inclusionai/ling-3.1-flash",
+
+    # Secondary candidates
+    "thinkingmachines/inkling:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "stealth/space-bunny-alpha",
+)
 
 def vehicle():
     return SimpleNamespace(
@@ -38,7 +49,7 @@ def vehicle():
     )
 
 
-async def run_model(model: str) -> bool:
+async def run_model(model: str) -> bool | None:
     base = get_settings()
     settings = base.model_copy(
         update={
@@ -53,7 +64,11 @@ async def run_model(model: str) -> bool:
     try:
         execution = await provider.research_vehicle_oil_spec(vehicle())
     except Exception as exc:  # live diagnostic script: show provider failure verbatim
-        print(f"FAIL ({time.perf_counter() - started:.1f}s): {exc}", flush=True)
+        elapsed = time.perf_counter() - started
+        if "rate limit" in str(exc).lower():
+            print(f"INCONCLUSIVE ({elapsed:.1f}s): {exc}", flush=True)
+            return None
+        print(f"FAIL ({elapsed:.1f}s): {exc}", flush=True)
         return False
     finally:
         await provider.aclose()
@@ -80,8 +95,9 @@ async def main() -> None:
 
     print("\n=== summary ===")
     for model, ok in outcomes:
-        print(f"{'PASS' if ok else 'FAIL'}  {model}")
-    if not all(ok for _, ok in outcomes):
+        state = "PASS" if ok is True else "INCONCLUSIVE" if ok is None else "FAIL"
+        print(f"{state}  {model}")
+    if any(ok is False for _, ok in outcomes):
         raise SystemExit(1)
 
 
