@@ -1,12 +1,12 @@
 import inspect
 import logging
 
-from app.agents.errors import ResearchProviderError
-from app.agents.factory import create_research_provider
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.repositories.agent_job_repository import AgentJobRepository
-from app.services.research import ResearchService
+from app.research import ResearchService
+from app.research.errors import ResearchProviderError
+from app.research.factory import create_research_provider
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +133,7 @@ async def run_agent_job(job_id: int | None = None):
             return failed
         return None
     finally:
-        close = getattr(getattr(provider, "client", None), "aclose", None)
+        close = getattr(provider, "aclose", None)
         if close is not None:
             try:
                 result = close()

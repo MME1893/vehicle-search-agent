@@ -27,7 +27,7 @@ class AgentJob(TimestampMixin, Base):
     )
     current_step: Mapped[str | None] = mapped_column(String(100))
     attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    error_message: Mapped[str | None] = mapped_column(String(2000))
+    status_reason: Mapped[str | None] = mapped_column(String(2000))
     agent_version: Mapped[str | None] = mapped_column(String(80))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
