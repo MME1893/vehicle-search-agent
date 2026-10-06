@@ -10,6 +10,8 @@ from app.schemas.vehicle import VehicleRead
 class ResearchRunRead(ORMModel):
     id: int
     vehicle_id: int
+    batch_id: str | None = None
+    batch_lane: str | None = None
     provider: str
     model: str | None
     matching_strategy: str

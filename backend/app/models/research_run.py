@@ -5,9 +5,11 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -27,12 +29,22 @@ class ResearchRun(Base):
             "evaluation_status IN ('ACCEPTED','NEEDS_REVIEW','REJECTED')",
             name="ck_research_evaluation_status",
         ),
+        UniqueConstraint(
+            "batch_id", "vehicle_id", "batch_lane",
+            name="uq_research_runs_batch_vehicle_lane",
+        ),
+        Index(
+            "ix_research_runs_batch_vehicle_lane",
+            "batch_id", "vehicle_id", "batch_lane",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     vehicle_id: Mapped[int] = mapped_column(
         ForeignKey("vehicles.id", ondelete="RESTRICT"), nullable=False, index=True
     )
+    batch_id: Mapped[str | None] = mapped_column(String(180))
+    batch_lane: Mapped[str | None] = mapped_column(String(60))
     provider: Mapped[str] = mapped_column(String(50), nullable=False)
     model: Mapped[str | None] = mapped_column(String(180))
     matching_strategy: Mapped[str] = mapped_column(String(50), nullable=False)
