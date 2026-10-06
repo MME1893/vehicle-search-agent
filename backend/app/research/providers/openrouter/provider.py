@@ -28,6 +28,18 @@ class OpenRouterResearchProvider:
         await self.client.aclose()
 
     @staticmethod
+    def _validate_identity(vehicle: Vehicle, result) -> None:
+        if result.vehicle_id != vehicle.id:
+            raise ResearchExecutionError(
+                "OpenRouter returned a vehicle_id that does not match the requested vehicle"
+            )
+        if vehicle.engine_code and result.engine_code != vehicle.engine_code:
+            raise ResearchExecutionError(
+                "OpenRouter returned an engine_code that does not exactly match the "
+                "requested vehicle"
+            )
+
+    @staticmethod
     def _vehicle_payload(vehicle: Vehicle) -> dict[str, Any]:
         return {
             "vehicle_id": vehicle.id,
@@ -59,9 +71,7 @@ class OpenRouterResearchProvider:
             raise ResearchExecutionError("OpenRouter returned empty assistant content")
         return content.strip()
 
-    async def research_vehicle_oil_spec(
-        self, vehicle: Vehicle
-    ) -> ResearchExecution:
+    async def research_vehicle_oil_spec(self, vehicle: Vehicle) -> ResearchExecution:
         logger.info("Research started vehicle_id=%s", vehicle.id)
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -71,7 +81,21 @@ class OpenRouterResearchProvider:
                 + json.dumps(self._vehicle_payload(vehicle), ensure_ascii=False),
             },
         ]
-        tools = [{"type": "openrouter:web_search"}] if self.web_search_enabled else None
+        tools = (
+            [
+                {
+                    "type": "openrouter:web_search",
+                    "parameters": {
+                        "engine": "exa",
+                        "max_results": 3,
+                        "max_total_results": 3,
+                        "max_uses": 1,
+                    },
+                }
+            ]
+            if self.web_search_enabled
+            else None
+        )
         response = await self.client.create_completion(messages=messages, tools=tools)
         raw = self._extract_content(response)
         try:
@@ -89,6 +113,7 @@ class OpenRouterResearchProvider:
                 raise ResearchExecutionError(
                     "OpenRouter returned invalid research JSON after one repair"
                 ) from exc
+        self._validate_identity(vehicle, result)
         logger.info(
             "Web research completed status=%s sources=%s confidence=%.2f",
             result.research_status.value,
@@ -100,4 +125,7 @@ class OpenRouterResearchProvider:
             provider=self.provider_name,
             model=getattr(self.client, "model", None),
             raw_research_text=raw,
+            grounding_sources=[
+                {"title": source.title, "url": source.url} for source in result.sources
+            ],
         )

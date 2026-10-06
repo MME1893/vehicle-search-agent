@@ -13,8 +13,11 @@ from openai import (
 
 from app.core.config import Settings
 from app.research.errors import (
+    ProviderAuthenticationError,
+    ProviderExecutionError,
+    ProviderQuotaError,
+    ProviderRateLimitError,
     ResearchProviderConfigurationError,
-    ResearchProviderError,
     ResearchProviderTimeoutError,
 )
 
@@ -25,7 +28,7 @@ class OpenRouterConfigurationError(ResearchProviderConfigurationError):
     pass
 
 
-class OpenRouterProviderError(ResearchProviderError):
+class OpenRouterProviderError(ProviderExecutionError):
     pass
 
 
@@ -59,7 +62,7 @@ class OpenRouterClient:
         self,
         *,
         messages: list[dict[str, str]],
-        tools: list[dict[str, str]] | None = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> Any:
         request: dict[str, Any] = {"model": self.model, "messages": messages}
         if tools is not None:
@@ -76,17 +79,25 @@ class OpenRouterClient:
         try:
             response = await self.client.chat.completions.create(**request)
         except AuthenticationError as exc:
-            raise OpenRouterProviderError("OpenRouter authentication failed") from exc
+            raise ProviderAuthenticationError("OpenRouter authentication failed") from exc
         except APITimeoutError as exc:
             timeout = f"{self.timeout_seconds:g}"
             raise OpenRouterTimeoutError(
                 f"OpenRouter request timed out after {timeout} seconds"
             ) from exc
         except RateLimitError as exc:
-            raise OpenRouterProviderError("OpenRouter rate limit exceeded") from exc
+            raise ProviderRateLimitError("OpenRouter rate limit exceeded") from exc
         except APIConnectionError as exc:
             raise OpenRouterProviderError("OpenRouter connection failed") from exc
         except APIStatusError as exc:
+            if exc.status_code == 401:
+                raise ProviderAuthenticationError(
+                    "OpenRouter authentication failed"
+                ) from exc
+            if exc.status_code == 402:
+                raise ProviderQuotaError("OpenRouter credit quota exhausted") from exc
+            if exc.status_code == 429:
+                raise ProviderRateLimitError("OpenRouter rate limit exceeded") from exc
             raise OpenRouterProviderError(
                 f"OpenRouter returned HTTP {exc.status_code}"
             ) from exc

@@ -4,9 +4,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
-from openai import APITimeoutError
+from openai import APIStatusError, APITimeoutError, AuthenticationError, RateLimitError
 
 from app.core.config import Settings
+from app.research.errors import (
+    ProviderAuthenticationError,
+    ProviderQuotaError,
+    ProviderRateLimitError,
+)
 from app.research.providers.openrouter.client import (
     OpenRouterClient,
     OpenRouterConfigurationError,
@@ -68,3 +73,41 @@ async def test_timeout_is_mapped_to_safe_provider_error():
     client = OpenRouterClient(configured_settings(), client=sdk)
     with pytest.raises(OpenRouterProviderError, match="timed out after 12 seconds"):
         await client.create_completion(messages=[])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("error_factory", "expected"),
+    [
+        (
+            lambda response: AuthenticationError(
+                "bad auth", response=response, body=None
+            ),
+            ProviderAuthenticationError,
+        ),
+        (
+            lambda response: RateLimitError("slow", response=response, body=None),
+            ProviderRateLimitError,
+        ),
+        (
+            lambda response: APIStatusError("credits", response=response, body=None),
+            ProviderQuotaError,
+        ),
+    ],
+)
+async def test_openrouter_typed_error_mapping(error_factory, expected):
+    status = 402 if expected is ProviderQuotaError else 429
+    if expected is ProviderAuthenticationError:
+        status = 401
+    response = httpx.Response(
+        status, request=httpx.Request("POST", "https://openrouter.test")
+    )
+    sdk = SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(create=AsyncMock(side_effect=error_factory(response)))
+        )
+    )
+    with pytest.raises(expected):
+        await OpenRouterClient(configured_settings(), client=sdk).create_completion(
+            messages=[]
+        )

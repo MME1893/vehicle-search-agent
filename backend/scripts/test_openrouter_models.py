@@ -63,7 +63,7 @@ async def run_model(model: str) -> bool | None:
     print(f"\n=== {model} ===", flush=True)
     try:
         execution = await provider.research_vehicle_oil_spec(vehicle())
-    except Exception as exc:  # live diagnostic script: show provider failure verbatim
+    except Exception as exc:  # noqa: BLE001 - live diagnostic boundary
         elapsed = time.perf_counter() - started
         if "rate limit" in str(exc).lower():
             print(f"INCONCLUSIVE ({elapsed:.1f}s): {exc}", flush=True)
