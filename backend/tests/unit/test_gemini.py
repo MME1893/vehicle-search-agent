@@ -1,5 +1,6 @@
 import asyncio
 import json
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -19,6 +20,7 @@ from app.research.errors import (
 )
 from app.research.factory import create_research_provider
 from app.research.prompts import serialize_oil_catalog
+from app.research.prompts.common import SYSTEM_PROMPT, build_vehicle_research_prompt
 from app.research.providers.gemini.client import GeminiClient
 from app.research.providers.gemini.provider import (
     GeminiResearchProvider as GeminiResearchAdapter,
@@ -325,8 +327,12 @@ def test_catalog_serialization_has_only_contract_fields():
         sae_viscosity="5W-30",
         api_spec="SN Plus",
         acea_specs=[],
+        ilsac_spec="GF-6A",
         base_type="Full Synthetic",
         oem_approvals=["GM dexos1 Gen2"],
+        package_volume_liters=Decimal("4.00"),
+        package_volume_label="4 Liters",
+        claimed_service_interval_km=5000,
     )
     assert serialize_oil_catalog([oil]) == [
         {
@@ -334,16 +340,55 @@ def test_catalog_serialization_has_only_contract_fields():
             "brand": "Behran",
             "name": "Super Rana Plus",
             "sae_viscosity": "5W-30",
-                "api_spec": "SN Plus",
-                "acea_specs": [],
-                "ilsac_spec": None,
-                "base_type": "Full Synthetic",
-                "oem_approvals": ["GM dexos1 Gen2"],
-                "package_volume_liters": None,
-                "package_volume_label": None,
-                "claimed_service_interval_km": None,
-            }
+            "api_spec": "SN Plus",
+            "acea_specs": [],
+            "ilsac_spec": "GF-6A",
+            "base_type": "Full Synthetic",
+            "oem_approvals": ["GM dexos1 Gen2"],
+            "package_volume_liters": "4.00",
+            "package_volume_label": "4 Liters",
+            "claimed_service_interval_km": 5000,
+        }
     ]
+    json.dumps(serialize_oil_catalog([oil]))
+
+
+def test_shared_prompt_has_rich_vehicle_and_complete_product_schema():
+    hilux = Vehicle(
+        id=1,
+        manufacturer="Toyota",
+        model="Hilux",
+        trim="2.7 Double Cab 4x4",
+        production_year_from=2024,
+        production_year_to=2026,
+        engine_displacement="2.7 L",
+        engine_type="Inline-4",
+        fuel_type="gasoline",
+        power_hp=134,
+        torque_nm=241,
+        transmission="5M/6A",
+        drivetrain="4WD",
+        body_type="Pickup",
+        body_style="Midsize Pickup",
+    )
+    prompt = build_vehicle_research_prompt(hilux)
+    for expected in (
+        "Engine type: Inline-4",
+        "Power: 134 hp",
+        "Torque: 241 Nm",
+        "Transmission: 5M/6A",
+        "Drivetrain: 4WD",
+        "Body type: Pickup",
+        "Body style: Midsize Pickup",
+    ):
+        assert expected in prompt
+    for field in (
+        "ilsac_spec",
+        "package_volume_liters",
+        "package_volume_label",
+        "claimed_service_interval_km",
+    ):
+        assert field in SYSTEM_PROMPT
 
 
 @pytest.mark.asyncio

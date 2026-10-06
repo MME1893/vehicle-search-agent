@@ -21,6 +21,7 @@ class Settings(BaseSettings):
 
     # OpenRouter
     openrouter_api_key: str | None = None
+    openrouter_api_keys: str | None = None
     openrouter_model: str | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_timeout_seconds: float = 90
@@ -38,6 +39,7 @@ class Settings(BaseSettings):
 
     # Gemini
     gemini_api_key: str | None = None
+    gemini_api_keys: str | None = None
     gemini_model: str = "gemini-2.5-flash"
     gemini_stage1_timeout_seconds: float = 45
     gemini_stage2_timeout_seconds: float = 20
