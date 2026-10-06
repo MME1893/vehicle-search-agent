@@ -17,6 +17,7 @@ from app.research.providers.opencode.client import (
     extract_final_assistant_text,
     extract_last_json_object,
     extract_tool_names,
+    extract_websearch_queries,
 )
 from app.research.providers.opencode.provider import (
     OpenCodeResearchProvider as OpenCodeResearchAgent,
@@ -64,10 +65,7 @@ def settings(**values):
 @pytest.fixture(autouse=True)
 def isolate_raw_output(monkeypatch, tmp_path):
     source_agent = (
-        Path(__file__).resolve().parents[3]
-        / ".opencode"
-        / "agents"
-        / "oil-research.md"
+        Path(__file__).resolve().parents[3] / ".opencode" / "agents" / "oil-research.md"
     )
     target_agent = tmp_path / ".opencode" / "agents" / "oil-research.md"
     target_agent.parent.mkdir(parents=True)
@@ -84,8 +82,15 @@ def vehicle():
         production_year_from=2003,
         production_year_to=2021,
         engine_code="TU5",
-        engine_displacement=1587,
+        engine_displacement="1587 cc",
+        engine_type="Inline-4",
         fuel_type="gasoline",
+        power_hp=105,
+        torque_nm=142,
+        transmission="5M",
+        drivetrain="FWD",
+        body_type="Hatchback",
+        body_style="Subcompact Hatchback",
     )
 
 
@@ -99,8 +104,7 @@ def process(stdout=VALID_RESULT, stderr=b"", returncode=0):
 
 def jsonl_result(*tools: str) -> bytes:
     events = [
-        {"type": "tool_use", "part": {"type": "tool", "tool": tool}}
-        for tool in tools
+        {"type": "tool_use", "part": {"type": "tool", "tool": tool}} for tool in tools
     ]
     events.append(
         {
@@ -124,8 +128,15 @@ def test_runtime_prompt_is_web_only_and_contains_exact_identity():
         production_year_from=2003,
         production_year_to=2021,
         engine_code="TU5",
-        engine_displacement=1587,
+        engine_displacement="1587 cc",
+        engine_type="Inline-4",
         fuel_type="gasoline",
+        power_hp=105,
+        torque_nm=142,
+        transmission="5M",
+        drivetrain="FWD",
+        body_type="Hatchback",
+        body_style="Subcompact Hatchback",
     )
     prompt = OpenCodeResearchAgent.build_vehicle_prompt(persian_vehicle)
 
@@ -134,25 +145,74 @@ def test_runtime_prompt_is_web_only_and_contains_exact_identity():
     assert "Vehicle ID: 312" in prompt
     assert "Manufacturer: پژو" in prompt
     assert "Model: 206" in prompt
-    assert "Trim / variant: تیپ 5" in prompt
+    assert "Trim: تیپ 5" in prompt
     assert "Production years: 2003-2021" in prompt
     assert "Engine code: TU5" in prompt
-    assert "Engine displacement: 1587" in prompt
+    assert "Engine displacement: 1587 cc" in prompt
+    assert "1587 cccc" not in prompt
+    assert "Engine type: Inline-4" in prompt
     assert "Fuel type: gasoline" in prompt
+    assert "Power: 105 hp" in prompt
+    assert "Torque: 142 Nm" in prompt
+    assert "Transmission: 5M" in prompt
+    assert "Drivetrain: FWD" in prompt
+    assert "Body type: Hatchback" in prompt
+    assert "Body style: Subcompact Hatchback" in prompt
     assert "vehicle_id MUST be exactly 312" in prompt
     assert 'engine_code MUST be exactly "TU5"' in prompt
     assert '"vehicle_id": 312' in prompt
     assert '"engine_code": "TU5"' in prompt
     assert '"recommended_sae": []' in prompt
     assert '"minimum_api": null' in prompt
+    assert '"ilsac_spec": null' in prompt
+    assert '"package_volume_liters": null' in prompt
+    assert '"package_volume_label": null' in prompt
+    assert '"claimed_service_interval_km": null' in prompt
     assert '"minimum_api_spec":' not in prompt
     assert '"vehicle": {' not in prompt
     assert '"vehicle_id": 123' not in prompt
+    for noisy_term in ("PSA B71", "ACEA", "Iranol", "Amiran", "RavanMotor"):
+        assert noisy_term not in prompt.split("RESEARCH BUDGET AND SEQUENCE:", 1)[0]
+
+
+def test_hilux_query_preserves_liter_displacement_and_rich_identity():
+    hilux = SimpleNamespace(
+        id=1,
+        manufacturer="Toyota",
+        model="Hilux",
+        trim="2.7 Double Cab 4x4",
+        production_year_from=2024,
+        production_year_to=2026,
+        engine_code=None,
+        engine_displacement="2.7 L",
+        engine_type="Inline-4",
+        fuel_type="gasoline",
+        power_hp=134,
+        torque_nm=241,
+        transmission="5M/6A",
+        drivetrain="4WD",
+        body_type="Pickup",
+        body_style="Midsize Pickup",
+    )
+    prompt = OpenCodeResearchAgent.build_vehicle_prompt(hilux)
+    query = prompt.split("FIRST SEARCH QUERY:\n", 1)[1].split("\n\n", 1)[0]
+    assert query == (
+        "Toyota Hilux 2.7 Double Cab 4x4 2024-2026 2.7 L gasoline "
+        "engine oil viscosity SAE API owner manual"
+    )
+    assert "2.7 Lcc" not in query
+    assert "Engine type: Inline-4" in prompt
+    assert "Power: 134 hp" in prompt
+    assert "Torque: 241 Nm" in prompt
+    assert "Transmission: 5M/6A" in prompt
+    assert "Drivetrain: 4WD" in prompt
+    assert "Body type: Pickup" in prompt
+    assert "Body style: Midsize Pickup" in prompt
 
 
 @pytest.mark.asyncio
 async def test_successful_run_parses_engine_oil_research_result(monkeypatch):
-    item = process()
+    item = process(stdout=jsonl_result("websearch"))
     spawn = AsyncMock(return_value=item)
     monkeypatch.setattr(
         "app.research.providers.opencode.client.asyncio.create_subprocess_exec", spawn
@@ -183,6 +243,8 @@ async def test_successful_run_parses_engine_oil_research_result(monkeypatch):
     assert args[file_index + 3].startswith(
         "Follow the attached runtime research request exactly."
     )
+    assert "exactly one" not in args[file_index + 3].lower()
+    assert "Vehicle ID: 312" not in args[file_index + 3]
 
 
 @pytest.mark.asyncio
@@ -223,6 +285,10 @@ async def test_research_uses_minimal_isolated_working_directory(monkeypatch, tmp
     ]
     assert observed["request"] == "research"
     assert "steps: 4" in observed["agent"]
+    assert "websearch: allow" in observed["agent"]
+    assert "webfetch: allow" in observed["agent"]
+    assert "read: allow" not in observed["agent"]
+    assert "bash: allow" not in observed["agent"]
     assert observed["env"]["PWD"] == str(observed["cwd"])
     assert "VIRTUAL_ENV" not in observed["env"]
     assert "PYTHONPATH" not in observed["env"]
@@ -241,9 +307,7 @@ async def test_server_attach_pins_remote_directory_to_isolated_workspace(monkeyp
         "app.research.providers.opencode.client.asyncio.create_subprocess_exec",
         AsyncMock(side_effect=spawn_process),
     )
-    client = OpenCodeClient(
-        settings(opencode_server_url="http://127.0.0.1:4096")
-    )
+    client = OpenCodeClient(settings(opencode_server_url="http://127.0.0.1:4096"))
     client._version = "2.0.16"
 
     await client.run("research", vehicle_id=312)
@@ -259,12 +323,8 @@ async def test_server_attach_pins_remote_directory_to_isolated_workspace(monkeyp
 
 @pytest.mark.asyncio
 async def test_runtime_prompt_is_utf8_file_attachment_not_cli_argument(monkeypatch):
-    prompt = (
-        "Large multiline runtime request\n"
-        "پژو 206\n"
-        "تیپ 5\n"
-        "TU5\n"
-        + ("technical requirements\n" * 500)
+    prompt = "Large multiline runtime request\nپژو 206\nتیپ 5\nTU5\n" + (
+        "technical requirements\n" * 500
     )
     observed = {}
 
@@ -295,6 +355,7 @@ async def test_runtime_prompt_is_utf8_file_attachment_not_cli_argument(monkeypat
     assert observed["args"][file_index + 3].startswith(
         "Follow the attached runtime research request exactly."
     )
+    assert "exactly one" not in observed["args"][file_index + 3].lower()
     metadata = json.loads(client.last_run_artifacts.metadata_path.read_text())
     assert metadata["runtime_prompt_chars"] == len(prompt)
     assert len(metadata["runtime_prompt_sha256"]) == 64
@@ -387,7 +448,7 @@ async def test_empty_output_is_rejected(monkeypatch):
         await client.run("research")
 
 
-@pytest.mark.parametrize("forbidden_tool", ["grep", "read", "bash"])
+@pytest.mark.parametrize("forbidden_tool", ["grep", "read", "bash", "task"])
 @pytest.mark.asyncio
 async def test_forbidden_local_tool_event_is_rejected(monkeypatch, forbidden_tool):
     monkeypatch.setattr(
@@ -405,8 +466,16 @@ async def test_forbidden_local_tool_event_is_rejected(monkeypatch, forbidden_too
 
 
 @pytest.mark.asyncio
-async def test_valid_web_only_tool_stream_is_accepted(monkeypatch):
-    tools = ("websearch", "websearch", "webfetch")
+@pytest.mark.parametrize(
+    "tools",
+    [
+        ("websearch",),
+        ("websearch", "webfetch"),
+        ("websearch", "websearch"),
+        ("websearch", "webfetch", "websearch"),
+    ],
+)
+async def test_valid_web_only_tool_stream_is_accepted(monkeypatch, tools):
     monkeypatch.setattr(
         "app.research.providers.opencode.client.asyncio.create_subprocess_exec",
         AsyncMock(return_value=process(stdout=jsonl_result(*tools))),
@@ -422,7 +491,7 @@ async def test_valid_web_only_tool_stream_is_accepted(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_empty_tool_list_may_pass(monkeypatch):
+async def test_empty_tool_list_is_rejected(monkeypatch):
     monkeypatch.setattr(
         "app.research.providers.opencode.client.asyncio.create_subprocess_exec",
         AsyncMock(return_value=process()),
@@ -430,8 +499,53 @@ async def test_empty_tool_list_may_pass(monkeypatch):
     client = OpenCodeClient(settings())
     client._version = "1.18.34"
 
-    assert json.loads(await client.run("research"))["vehicle_id"] == 312
+    with pytest.raises(OpenCodeExecutionError, match="between 1 and 2 websearch"):
+        await client.run("research")
     assert client.last_tools_used == []
+
+
+@pytest.mark.asyncio
+async def test_three_websearch_calls_are_rejected(monkeypatch):
+    monkeypatch.setattr(
+        "app.research.providers.opencode.client.asyncio.create_subprocess_exec",
+        AsyncMock(
+            return_value=process(
+                stdout=jsonl_result("websearch", "websearch", "websearch")
+            )
+        ),
+    )
+    client = OpenCodeClient(settings())
+    client._version = "1.18.34"
+    with pytest.raises(OpenCodeExecutionError, match="observed 3"):
+        await client.run("research")
+
+
+@pytest.mark.asyncio
+async def test_two_webfetch_calls_are_rejected(monkeypatch):
+    monkeypatch.setattr(
+        "app.research.providers.opencode.client.asyncio.create_subprocess_exec",
+        AsyncMock(
+            return_value=process(
+                stdout=jsonl_result("websearch", "webfetch", "webfetch")
+            )
+        ),
+    )
+    client = OpenCodeClient(settings())
+    client._version = "1.18.34"
+    with pytest.raises(OpenCodeExecutionError, match="at most one webfetch"):
+        await client.run("research")
+
+
+@pytest.mark.asyncio
+async def test_webfetch_before_websearch_is_rejected(monkeypatch):
+    monkeypatch.setattr(
+        "app.research.providers.opencode.client.asyncio.create_subprocess_exec",
+        AsyncMock(return_value=process(stdout=jsonl_result("webfetch", "websearch"))),
+    )
+    client = OpenCodeClient(settings())
+    client._version = "1.18.34"
+    with pytest.raises(OpenCodeExecutionError, match="before websearch"):
+        await client.run("research")
 
 
 def test_extract_tool_names_ignores_non_tool_events():
@@ -440,12 +554,60 @@ def test_extract_tool_names_ignores_non_tool_events():
     assert extract_tool_names(raw) == ["websearch", "webfetch"]
 
 
+def test_extract_websearch_query_from_tool_trace():
+    raw = json.dumps(
+        {
+            "type": "tool_use",
+            "part": {
+                "type": "tool",
+                "tool": "websearch",
+                "state": {"input": {"query": "TU5 oil specification"}},
+            },
+        }
+    )
+    assert extract_websearch_queries(raw) == ["TU5 oil specification"]
+
+
+def test_extracts_both_websearch_queries_from_tool_trace():
+    raw = "\n".join(
+        json.dumps(
+            {
+                "type": "tool_use",
+                "part": {
+                    "type": "tool",
+                    "tool": "websearch",
+                    "state": {"input": {"query": query}},
+                },
+            }
+        )
+        for query in ("Toyota Hilux owner manual", "Toyota Hilux 2TR-FE oil SAE")
+    )
+    assert extract_websearch_queries(raw) == [
+        "Toyota Hilux owner manual",
+        "Toyota Hilux 2TR-FE oil SAE",
+    ]
+
+
 @pytest.mark.asyncio
 async def test_invalid_json_fails_without_second_research_run():
     client = SimpleNamespace(run=AsyncMock(return_value="not json"))
     with pytest.raises(ResearchExecutionError, match="invalid research JSON"):
         await OpenCodeResearchAgent(client).research_vehicle_oil_spec(vehicle())
     client.run.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_provider_copies_validated_search_query_and_grounding_sources():
+    client = SimpleNamespace(
+        run=AsyncMock(return_value=VALID_RESULT.decode()),
+        model="opencode/big-pickle",
+        last_search_queries=["Peugeot 206 TU5 oil specification"],
+    )
+    execution = await OpenCodeResearchAgent(client).research_vehicle_oil_spec(vehicle())
+    assert execution.search_queries == ["Peugeot 206 TU5 oil specification"]
+    assert execution.grounding_sources == [
+        {"title": "Manual", "url": "https://example.com/manual"}
+    ]
 
 
 def test_extracts_only_final_assistant_message_after_tool_events():

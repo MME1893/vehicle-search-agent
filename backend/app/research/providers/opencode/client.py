@@ -21,8 +21,8 @@ from app.research.errors import ResearchProviderError, ResearchProviderTimeoutEr
 logger = logging.getLogger(__name__)
 _ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 ALLOWED_RESEARCH_TOOLS = {
-    "websearch",
     "webfetch",
+    "websearch",
 }
 
 
@@ -162,6 +162,29 @@ def extract_tool_names(raw_stdout: str) -> list[str]:
     return tools
 
 
+def extract_websearch_queries(raw_stdout: str) -> list[str]:
+    queries: list[str] = []
+    for line in raw_stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if not isinstance(event, dict) or event.get("type") != "tool_use":
+            continue
+        part = event.get("part")
+        if not isinstance(part, dict) or part.get("tool") != "websearch":
+            continue
+        candidates = [part.get("input")]
+        state = part.get("state")
+        if isinstance(state, dict):
+            candidates.extend((state.get("input"), state.get("args")))
+        for candidate in candidates:
+            if isinstance(candidate, dict) and isinstance(candidate.get("query"), str):
+                queries.append(candidate["query"])
+                break
+    return queries
+
+
 class OpenCodeClient:
     def __init__(self, settings: Settings, working_directory: Path | None = None):
         self.command = (
@@ -176,6 +199,7 @@ class OpenCodeClient:
         self.artifact_directory = ROOT_DIR / "backend" / "logs" / "opencode"
         self.last_run_artifacts: OpenCodeRunArtifacts | None = None
         self.last_tools_used: list[str] = []
+        self.last_search_queries: list[str] = []
         self._version: str | None = None
 
     async def aclose(self) -> None:
@@ -221,6 +245,9 @@ class OpenCodeClient:
         self.last_tools_used = extract_tool_names(
             stdout.decode("utf-8", errors="replace")
         )
+        self.last_search_queries = extract_websearch_queries(
+            stdout.decode("utf-8", errors="replace")
+        )
         metadata = {
             "vehicle_id": vehicle_id,
             "agent": self.agent,
@@ -230,6 +257,7 @@ class OpenCodeClient:
             "elapsed_seconds": round(elapsed_seconds, 3),
             "return_code": return_code,
             "tools_used": self.last_tools_used,
+            "search_queries": self.last_search_queries,
         }
         artifacts.metadata_path.write_text(
             json.dumps(metadata, indent=2, ensure_ascii=False) + "\n",
@@ -480,9 +508,11 @@ class OpenCodeClient:
                     "--file",
                     str(runtime_request_path),
                     "--",
-                    "Follow the attached runtime research request exactly. "
-                    "Use only websearch/webfetch as instructed and return the "
-                    "requested JSON object only.",
+                    (
+                        "Follow the attached runtime research request exactly. "
+                        "Use only the allowed web research tools within its stated "
+                        "budget. Return the requested JSON object only."
+                    ),
                 ]
             )
 
@@ -548,13 +578,6 @@ class OpenCodeClient:
         logger.info("[OpenCode] Research completed in %.1fs", elapsed)
 
         raw_stdout = stdout.decode("utf-8", errors="replace")
-        forbidden_tools = sorted(set(self.last_tools_used) - ALLOWED_RESEARCH_TOOLS)
-        if forbidden_tools:
-            raise OpenCodeExecutionError(
-                "OpenCode research attempted forbidden local tools: "
-                + ", ".join(forbidden_tools)
-            )
-
         if process.returncode != 0:
             detail = self._safe_stderr(stderr) or "no error details"
             raise OpenCodeExecutionError(
@@ -563,6 +586,32 @@ class OpenCodeClient:
 
         if not raw_stdout.strip():
             raise OpenCodeExecutionError("OpenCode returned empty output.")
+
+        forbidden_tools = sorted(set(self.last_tools_used) - ALLOWED_RESEARCH_TOOLS)
+        if forbidden_tools:
+            raise OpenCodeExecutionError(
+                "OpenCode research attempted forbidden local tools: "
+                + ", ".join(forbidden_tools)
+            )
+        websearch_count = self.last_tools_used.count("websearch")
+        webfetch_count = self.last_tools_used.count("webfetch")
+        if not 1 <= websearch_count <= 2:
+            raise OpenCodeExecutionError(
+                "OpenCode research must use between 1 and 2 websearch calls; "
+                f"observed {websearch_count}"
+            )
+        if webfetch_count > 1:
+            raise OpenCodeExecutionError(
+                "OpenCode research may use at most one webfetch; "
+                f"observed {webfetch_count}"
+            )
+        if "webfetch" in self.last_tools_used:
+            first_search = self.last_tools_used.index("websearch")
+            first_fetch = self.last_tools_used.index("webfetch")
+            if first_fetch < first_search:
+                raise OpenCodeExecutionError(
+                    "OpenCode research may not use webfetch before websearch."
+                )
 
         extraction_started = time.perf_counter()
         try:
