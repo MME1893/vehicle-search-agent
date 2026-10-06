@@ -45,7 +45,15 @@ async def test_research_uses_web_search_tool():
     agent = ResearchAgent(client, Settings())
     await agent.research_vehicle_oil_spec(vehicle())
     assert client.create_completion.await_args.kwargs["tools"] == [
-        {"type": "openrouter:web_search"}
+        {
+            "type": "openrouter:web_search",
+            "parameters": {
+                "engine": "exa",
+                "max_results": 3,
+                "max_total_results": 3,
+                "max_uses": 1,
+            },
+        }
     ]
 
 
@@ -72,3 +80,41 @@ async def test_invalid_repair_fails_safely():
     )
     with pytest.raises(ResearchExecutionError, match="after one repair"):
         await ResearchAgent(client, Settings()).research_vehicle_oil_spec(vehicle())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("field", "value"), [("vehicle_id", 999), ("engine_code", "WRONG")]
+)
+async def test_openrouter_requires_exact_vehicle_identity(field, value):
+    payload = valid_payload()
+    payload[field] = value
+    client = SimpleNamespace(
+        create_completion=AsyncMock(return_value=response(json.dumps(payload))),
+        model="test/model",
+    )
+    with pytest.raises(ResearchExecutionError, match=field):
+        await ResearchAgent(client, Settings()).research_vehicle_oil_spec(vehicle())
+
+
+@pytest.mark.asyncio
+async def test_openrouter_preserves_result_sources_as_grounding_metadata():
+    payload = valid_payload()
+    payload["sources"] = [
+        {
+            "title": "Owner manual",
+            "url": "https://example.test/manual",
+            "source_type": "OFFICIAL_MANUAL",
+            "supported_claims": ["SAE 10W-40"],
+        }
+    ]
+    client = SimpleNamespace(
+        create_completion=AsyncMock(return_value=response(json.dumps(payload))),
+        model="test/model",
+    )
+    execution = await ResearchAgent(client, Settings()).research_vehicle_oil_spec(
+        vehicle()
+    )
+    assert execution.grounding_sources == [
+        {"title": "Owner manual", "url": "https://example.test/manual"}
+    ]
