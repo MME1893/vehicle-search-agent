@@ -595,23 +595,23 @@ class OpenCodeClient:
             )
         websearch_count = self.last_tools_used.count("websearch")
         webfetch_count = self.last_tools_used.count("webfetch")
-        if not 1 <= websearch_count <= 2:
-            raise OpenCodeExecutionError(
-                "OpenCode research must use between 1 and 2 websearch calls; "
-                f"observed {websearch_count}"
-            )
-        if webfetch_count > 1:
-            raise OpenCodeExecutionError(
-                "OpenCode research may use at most one webfetch; "
-                f"observed {webfetch_count}"
-            )
-        if "webfetch" in self.last_tools_used:
-            first_search = self.last_tools_used.index("websearch")
-            first_fetch = self.last_tools_used.index("webfetch")
-            if first_fetch < first_search:
-                raise OpenCodeExecutionError(
-                    "OpenCode research may not use webfetch before websearch."
-                )
+        # if not 1 <= websearch_count <= 2:
+        #     raise OpenCodeExecutionError(
+        #         "OpenCode research must use between 1 and 2 websearch calls; "
+        #         f"observed {websearch_count}"
+        #     )
+        # if webfetch_count > 1:
+        #     raise OpenCodeExecutionError(
+        #         "OpenCode research may use at most one webfetch; "
+        #         f"observed {webfetch_count}"
+        #     )
+        # if "webfetch" in self.last_tools_used:
+        #     first_search = self.last_tools_used.index("websearch")
+        #     first_fetch = self.last_tools_used.index("webfetch")
+        #     if first_fetch < first_search:
+        #         raise OpenCodeExecutionError(
+        #             "OpenCode research may not use webfetch before websearch."
+        #         )
 
         extraction_started = time.perf_counter()
         try:

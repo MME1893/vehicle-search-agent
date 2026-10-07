@@ -18,8 +18,31 @@ from app.research.errors import (
     ResearchProviderConfigurationError,
     ResearchProviderTimeoutError,
 )
+from app.research.schemas import EngineOilResearchResult
 
 logger = logging.getLogger(__name__)
+
+
+def _gemini_response_json_schema(
+    schema: type[BaseModel] = EngineOilResearchResult,
+) -> dict[str, Any]:
+    response_schema = schema.model_json_schema()
+
+    def normalize(value: Any) -> None:
+        if isinstance(value, dict):
+            if "exclusiveMinimum" in value:
+                exclusive_minimum = value.pop("exclusiveMinimum")
+                minimum = value.get("minimum")
+                if minimum is None or exclusive_minimum > minimum:
+                    value["minimum"] = exclusive_minimum
+            for nested_value in value.values():
+                normalize(nested_value)
+        elif isinstance(value, list):
+            for item in value:
+                normalize(item)
+
+    normalize(response_schema)
+    return response_schema
 
 
 @dataclass(frozen=True)
@@ -210,7 +233,7 @@ class GeminiClient:
                     temperature=0,
                     max_output_tokens=self.max_output_tokens,
                     response_mime_type="application/json",
-                    response_schema=schema,
+                    response_json_schema=_gemini_response_json_schema(schema),
                 ),
                 timeout_seconds=self.stage2_timeout_seconds,
                 stage_name="Stage 2",

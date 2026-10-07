@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -33,7 +33,6 @@ class Lane:
     name: str
     provider: str
     primary_model: str
-    fallback_model: str | None = None
 
 
 LANES = {
@@ -44,15 +43,63 @@ LANES = {
             "openrouter-apodex",
             "openrouter",
             "apodex/apodex-1.1-mini:free",
-            "stealth/space-bunny-alpha",
         ),
         Lane(
             "openrouter-dots",
             "openrouter",
             "dots-studio/dots-3-note-preview:free",
-            "stealth/space-bunny-alpha",
         ),
         Lane("opencode-big-pickle", "opencode", "opencode/big-pickle"),
+        Lane(
+            "opencode-exo",
+            "opencode",
+            "opencode/exo-free",
+        ),
+        Lane(
+            "opencode-fledge-alpha",
+            "opencode",
+            "opencode/fledge-alpha-free",
+        ),
+        Lane(
+            "opencode-ling-3.0-flash-fin",
+            "opencode",
+            "opencode/ling-3.0-flash-fin-free",
+        ),
+        Lane(
+            "opencode-ling-3.1-flash",
+            "opencode",
+            "opencode/ling-3.1-flash-free",
+        ),
+        Lane(
+            "opencode-longcat-2.5-preview",
+            "opencode",
+            "opencode/longcat-2.5-preview-free",
+        ),
+        Lane(
+            "opencode-mimo-v2.6-flash",
+            "opencode",
+            "opencode/mimo-v2.6-flash-free",
+        ),
+        Lane(
+            "opencode-muse-spark-1.3",
+            "opencode",
+            "opencode/muse-spark-1.3-contributor-free",
+        ),
+        Lane(
+            "opencode-nemotron-3-ultra",
+            "opencode",
+            "opencode/nemotron-3-ultra-free",
+        ),
+        Lane(
+            "opencode-nemotron-3.5-lightning",
+            "opencode",
+            "opencode/nemotron-3.5-lightning-free",
+        ),
+        Lane(
+            "opencode-space-bunny",
+            "opencode",
+            "opencode/space-bunny-free",
+        )
     )
 }
 
@@ -251,21 +298,16 @@ class LaneExecutor:
         if self.lane.provider == "gemini":
             updates.update(gemini_model=model, gemini_api_key=key)
         elif self.lane.provider == "openrouter":
-            updates.update(openrouter_model=model, openrouter_api_key=key)
+            updates.update(
+                openrouter_model=model,
+                openrouter_api_key=key,
+                openrouter_resin_account=self.lane.name,
+            )
         else:
             updates.update(opencode_model=model)
         provider = create_research_provider(self.settings.model_copy(update=updates))
         self.providers[cache_key] = provider
         return provider
-
-    def _space_bunny_already_used(self, batch_id: str, vehicle_id: int) -> bool:
-        return self.db.scalar(
-            select(func.count(ResearchRun.id)).where(
-                ResearchRun.batch_id == batch_id,
-                ResearchRun.vehicle_id == vehicle_id,
-                ResearchRun.model == "stealth/space-bunny-alpha",
-            )
-        ) > 0
 
     async def _try_model(self, vehicle_id: int, model: str):
         leases = self.key_pool.available()
@@ -301,17 +343,7 @@ class LaneExecutor:
         raise last_error
 
     async def research(self, batch_id: str, vehicle_id: int):
-        try:
-            return await self._try_model(vehicle_id, self.lane.primary_model)
-        except ResearchProviderError as primary_error:
-            self.db.rollback()
-            if not self.lane.fallback_model:
-                raise
-            if self._space_bunny_already_used(batch_id, vehicle_id):
-                raise ResearchProviderError(
-                    "shared Space Bunny fallback already completed for this vehicle/batch"
-                ) from primary_error
-            return await self._try_model(vehicle_id, self.lane.fallback_model)
+        return await self._try_model(vehicle_id, self.lane.primary_model)
 
     async def close(self) -> None:
         for provider in self.providers.values():

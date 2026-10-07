@@ -8,11 +8,16 @@ from sqlalchemy import func, select
 from app.core.config import Settings
 from app.domain.enums import ResearchStatus
 from app.models import Compatibility, EngineOil, ResearchRun, Vehicle
-from app.research.errors import ProviderAuthenticationError, ResearchProviderError
+from app.research.errors import (
+    ProviderAuthenticationError,
+    ProviderRateLimitError,
+    ResearchProviderError,
+)
 from app.research.key_pool import ProviderKeyPool, parse_key_pool
 from app.research.schemas import EngineOilResearchResult, ResearchExecution
 from scripts.research_provider_matrix import (
     LANES,
+    LaneExecutor,
     calculate_lane_status,
     execute_lane,
     load_benchmark_settings,
@@ -183,9 +188,84 @@ async def test_permanent_bad_key_is_disabled_and_secret_is_not_printed(
 
 
 @pytest.mark.asyncio
+async def test_openrouter_rate_limit_rotates_key_without_disabling_it(db, monkeypatch):
+    add_vehicles(db, (10,))
+    attempts = []
+
+    class Provider:
+        def __init__(self, key, model):
+            self.key = key
+            self.model = model
+
+        async def research_vehicle_oil_spec(self, vehicle):
+            attempts.append(self.key)
+            if self.key == "key-one":
+                raise ProviderRateLimitError("OpenRouter rate limit exceeded")
+            return insufficient_execution(vehicle, "openrouter", self.model)
+
+        async def aclose(self):
+            pass
+
+    monkeypatch.setattr(
+        "scripts.research_provider_matrix.create_research_provider",
+        lambda settings: Provider(settings.openrouter_api_key, settings.openrouter_model),
+    )
+    executor = LaneExecutor(
+        LANES["openrouter-apodex"],
+        Settings(openrouter_api_keys="key-one,key-two"),
+        db,
+    )
+    try:
+        outcome, key_index, _provider = await executor.research("batch", 10)
+    finally:
+        await executor.close()
+
+    assert outcome.execution.model == LANES["openrouter-apodex"].primary_model
+    assert key_index == 2
+    assert attempts == ["key-one", "key-two"]
+    assert not executor.key_pool.is_disabled(1)
+
+
+@pytest.mark.asyncio
+async def test_openrouter_all_rate_limited_keys_raise_last_rate_limit(db, monkeypatch):
+    add_vehicles(db, (10,))
+    attempts = []
+
+    class Provider:
+        def __init__(self, key):
+            self.key = key
+
+        async def research_vehicle_oil_spec(self, _vehicle):
+            attempts.append(self.key)
+            raise ProviderRateLimitError("OpenRouter rate limit exceeded")
+
+        async def aclose(self):
+            pass
+
+    monkeypatch.setattr(
+        "scripts.research_provider_matrix.create_research_provider",
+        lambda settings: Provider(settings.openrouter_api_key),
+    )
+    executor = LaneExecutor(
+        LANES["openrouter-apodex"],
+        Settings(openrouter_api_keys="key-one,key-two"),
+        db,
+    )
+    try:
+        with pytest.raises(ProviderRateLimitError, match="rate limit exceeded"):
+            await executor.research("batch", 10)
+    finally:
+        await executor.close()
+
+    assert attempts == ["key-one", "key-two"]
+    assert not executor.key_pool.is_disabled(1)
+    assert not executor.key_pool.is_disabled(2)
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("lane_name", ["openrouter-apodex", "openrouter-dots"])
-async def test_openrouter_primary_failure_uses_shared_fallback(
-    db, monkeypatch, lane_name
+async def test_openrouter_primary_failure_does_not_construct_fallback(
+    db, monkeypatch, capsys, lane_name
 ):
     add_vehicles(db, (10,))
     constructed = []
@@ -195,65 +275,28 @@ async def test_openrouter_primary_failure_uses_shared_fallback(
             self.model = model
 
         async def research_vehicle_oil_spec(self, vehicle):
-            if self.model != "stealth/space-bunny-alpha":
-                raise ResearchProviderError("primary model unavailable")
-            return insufficient_execution(vehicle, "openrouter", self.model)
-
-        async def aclose(self):
-            pass
-
-    def factory(settings):
-        constructed.append(settings.openrouter_model)
-        return Provider(settings.openrouter_model)
-
-    monkeypatch.setattr(
-        "scripts.research_provider_matrix.create_research_provider", factory
-    )
-    settings = Settings(openrouter_api_key="secret")
-    summary = await execute_lane(db, settings, "fallback", LANES[lane_name], [10])
-    assert summary.failures == 0
-    run = db.scalar(select(ResearchRun))
-    assert run.batch_lane == lane_name
-    assert run.model == "stealth/space-bunny-alpha"
-    assert constructed == [LANES[lane_name].primary_model, "stealth/space-bunny-alpha"]
-
-
-@pytest.mark.asyncio
-async def test_persisted_space_bunny_is_not_reused_by_other_lane(db, monkeypatch):
-    add_vehicles(db, (10,))
-
-    class Provider:
-        def __init__(self, model):
-            self.model = model
-
-        async def research_vehicle_oil_spec(self, vehicle):
-            if self.model == "stealth/space-bunny-alpha":
-                return insufficient_execution(vehicle, "openrouter", self.model)
             raise ResearchProviderError("primary model unavailable")
 
         async def aclose(self):
             pass
 
-    created = []
-
     def factory(settings):
-        created.append(settings.openrouter_model)
+        constructed.append(
+            (settings.openrouter_model, settings.openrouter_resin_account)
+        )
         return Provider(settings.openrouter_model)
 
     monkeypatch.setattr(
         "scripts.research_provider_matrix.create_research_provider", factory
     )
     settings = Settings(openrouter_api_key="secret")
-    first = await execute_lane(
-        db, settings, "shared", LANES["openrouter-apodex"], [10]
-    )
-    second = await execute_lane(
-        db, settings, "shared", LANES["openrouter-dots"], [10]
-    )
-    assert first.failures == 0
-    assert second.failures == 1
-    assert db.scalar(select(func.count(ResearchRun.id))) == 1
-    assert created.count("stealth/space-bunny-alpha") == 1
+    summary = await execute_lane(db, settings, "primary-only", LANES[lane_name], [10])
+    assert summary.failures == 1
+    assert db.scalar(select(ResearchRun)) is None
+    assert constructed == [
+        (LANES[lane_name].primary_model, lane_name),
+    ]
+    assert "error=primary model unavailable" in capsys.readouterr().out
 
 
 def test_separate_lanes_have_independent_status(db):
