@@ -103,7 +103,7 @@ async def preflight_model(
         if stderr:
             print("preflight debug tail:\n" + _tail(stderr), flush=True)
         return False
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - live diagnostic boundary
         print(
             f"preflight: FAIL ({time.perf_counter() - started:.1f}s): {exc}",
             flush=True,
@@ -164,7 +164,7 @@ async def run_model(
     try:
         version = await client.get_version()
         print(f"opencode version: {version}", flush=True)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - live diagnostic boundary
         print(f"version check: FAIL: {exc}", flush=True)
         return False
 
@@ -175,7 +175,7 @@ async def run_model(
     started = time.perf_counter()
     try:
         execution = await provider.research_vehicle_oil_spec(vehicle())
-    except Exception as exc:  # live diagnostic script: preserve exact failure
+    except Exception as exc:  # noqa: BLE001 - live diagnostic boundary
         print(f"research: FAIL ({time.perf_counter() - started:.1f}s): {exc}", flush=True)
         if client.last_tools_used:
             print("tools attempted: " + ", ".join(client.last_tools_used))

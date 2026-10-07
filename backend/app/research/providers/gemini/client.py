@@ -12,11 +12,37 @@ from pydantic import BaseModel
 from app.core.config import Settings
 from app.research.errors import (
     GeminiProviderError,
+    ProviderAuthenticationError,
+    ProviderQuotaError,
+    ProviderRateLimitError,
     ResearchProviderConfigurationError,
     ResearchProviderTimeoutError,
 )
+from app.research.schemas import EngineOilResearchResult
 
 logger = logging.getLogger(__name__)
+
+
+def _gemini_response_json_schema(
+    schema: type[BaseModel] = EngineOilResearchResult,
+) -> dict[str, Any]:
+    response_schema = schema.model_json_schema()
+
+    def normalize(value: Any) -> None:
+        if isinstance(value, dict):
+            if "exclusiveMinimum" in value:
+                exclusive_minimum = value.pop("exclusiveMinimum")
+                minimum = value.get("minimum")
+                if minimum is None or exclusive_minimum > minimum:
+                    value["minimum"] = exclusive_minimum
+            for nested_value in value.values():
+                normalize(nested_value)
+        elif isinstance(value, list):
+            for item in value:
+                normalize(item)
+
+    normalize(response_schema)
+    return response_schema
 
 
 @dataclass(frozen=True)
@@ -43,6 +69,7 @@ class GeminiClient:
         if not settings.gemini_model:
             raise ResearchProviderConfigurationError("GEMINI_MODEL is required")
         self.client = client or genai.Client(api_key=settings.gemini_api_key)
+        self._api_key = settings.gemini_api_key
         self.model = settings.gemini_model
         self.stage1_timeout_seconds = settings.gemini_stage1_timeout_seconds
         self.stage2_timeout_seconds = settings.gemini_stage2_timeout_seconds
@@ -129,6 +156,18 @@ class GeminiClient:
                             )
                             await asyncio.sleep(0.5)
                             continue
+                        code = getattr(exc, "code", None)
+                        status = str(getattr(exc, "status", "") or "").upper()
+                        if code == 401 or status in {"UNAUTHENTICATED", "PERMISSION_DENIED"}:
+                            raise ProviderAuthenticationError(
+                                "Gemini authentication failed"
+                            ) from exc
+                        if code == 402:
+                            raise ProviderQuotaError("Gemini quota exhausted") from exc
+                        if code == 429 or status == "RESOURCE_EXHAUSTED":
+                            raise ProviderRateLimitError(
+                                "Gemini rate limit or quota exceeded"
+                            ) from exc
                         raise GeminiProviderError(
                             f"Gemini API request failed: {exc}"
                         ) from exc
@@ -138,16 +177,25 @@ class GeminiClient:
             ) from exc
         except ResearchProviderTimeoutError:
             raise
+        except (
+            ProviderAuthenticationError,
+            ProviderQuotaError,
+            ProviderRateLimitError,
+        ):
+            raise
         except GeminiProviderError:
             raise
         except Exception as exc:
-            logger.exception(
+            detail = str(exc)
+            if self._api_key:
+                detail = detail.replace(self._api_key, "[REDACTED]")
+            logger.error(
                 "Gemini request failed: %s: %s",
                 type(exc).__name__,
-                exc,  # noqa: TRY401 - preserve the provider's exact exception text
+                detail,
             )
             raise GeminiProviderError(
-                f"Gemini request failed: {type(exc).__name__}: {exc}"
+                f"Gemini request failed: {type(exc).__name__}: {detail}"
             ) from exc
 
     async def generate_grounded(self, prompt: str):
@@ -185,7 +233,7 @@ class GeminiClient:
                     temperature=0,
                     max_output_tokens=self.max_output_tokens,
                     response_mime_type="application/json",
-                    response_schema=schema,
+                    response_json_schema=_gemini_response_json_schema(schema),
                 ),
                 timeout_seconds=self.stage2_timeout_seconds,
                 stage_name="Stage 2",

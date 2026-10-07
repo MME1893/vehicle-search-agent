@@ -67,4 +67,9 @@ class OpenCodeResearchProvider:
             provider=self.provider_name,
             model=self.client.model,
             raw_research_text=raw,
+            search_queries=list(getattr(self.client, "last_search_queries", [])),
+            grounding_sources=[
+                {"title": source.title, "url": source.url}
+                for source in result.sources
+            ],
         )

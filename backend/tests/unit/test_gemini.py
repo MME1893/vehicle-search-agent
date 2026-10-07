@@ -1,10 +1,12 @@
 import asyncio
 import json
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-from google.genai import errors
+from google.genai import errors, types
+from pydantic import ValidationError
 
 from app.core.config import Settings
 from app.models import EngineOil, Vehicle
@@ -19,7 +21,11 @@ from app.research.errors import (
 )
 from app.research.factory import create_research_provider
 from app.research.prompts import serialize_oil_catalog
-from app.research.providers.gemini.client import GeminiClient
+from app.research.prompts.common import SYSTEM_PROMPT, build_vehicle_research_prompt
+from app.research.providers.gemini.client import (
+    GeminiClient,
+    _gemini_response_json_schema,
+)
 from app.research.providers.gemini.provider import (
     GeminiResearchProvider as GeminiResearchAdapter,
 )
@@ -138,7 +144,11 @@ async def test_grounded_research_uses_google_search_and_parses_schema():
     assert extraction_request["config"].tools is None
     assert extraction_request["config"].temperature == 0
     assert extraction_request["config"].response_mime_type == "application/json"
-    assert extraction_request["config"].response_schema is EngineOilResearchResult
+    assert extraction_request["config"].response_schema is None
+    assert (
+        extraction_request["config"].response_json_schema
+        == _gemini_response_json_schema()
+    )
     assert "Grounded technical findings." in extraction_request["contents"]
     assert "https://example.test/manual" in extraction_request["contents"]
     assert "Do not search again" in extraction_request["contents"]
@@ -146,6 +156,62 @@ async def test_grounded_research_uses_google_search_and_parses_schema():
     assert adapter.client.last_grounding.sources
     assert adapter.client.last_research_text == "Grounded technical findings."
     assert adapter.client.last_structured_text is not None
+
+
+def test_gemini_response_json_schema_normalizes_exclusive_minimums():
+    schema = _gemini_response_json_schema()
+    serialized_schema = json.dumps(schema)
+    assert "exclusiveMinimum" not in serialized_schema
+
+    product_ref = schema["properties"]["recommended_products"]["items"]["$ref"]
+    product_schema = schema
+    for path_part in product_ref.removeprefix("#/").split("/"):
+        product_schema = product_schema[path_part]
+
+    volume_alternatives = product_schema["properties"]["package_volume_liters"][
+        "anyOf"
+    ]
+    interval_alternatives = product_schema["properties"][
+        "claimed_service_interval_km"
+    ]["anyOf"]
+    assert next(item for item in volume_alternatives if item.get("type") == "number")[
+        "minimum"
+    ] == 0.0
+    assert next(
+        item for item in interval_alternatives if item.get("type") == "integer"
+    )["minimum"] == 0
+
+
+def test_google_sdk_accepts_normalized_response_json_schema_config():
+    schema = _gemini_response_json_schema()
+
+    config = types.GenerateContentConfig(
+        temperature=0,
+        max_output_tokens=1024,
+        response_mime_type="application/json",
+        response_json_schema=schema,
+    )
+
+    assert config.response_json_schema == schema
+    assert config.response_schema is None
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("package_volume_liters", 0), ("claimed_service_interval_km", 0)],
+)
+def test_gemini_schema_normalization_does_not_weaken_domain_validation(field, value):
+    product = {
+        "brand": "Iranol",
+        "name": "Racing",
+        "sae_viscosity": "10W-40",
+        field: value,
+    }
+
+    with pytest.raises(ValidationError, match=field):
+        EngineOilResearchResult.model_validate(
+            research_payload(recommended_products=[product])
+        )
 
 
 @pytest.mark.asyncio
@@ -325,8 +391,12 @@ def test_catalog_serialization_has_only_contract_fields():
         sae_viscosity="5W-30",
         api_spec="SN Plus",
         acea_specs=[],
+        ilsac_spec="GF-6A",
         base_type="Full Synthetic",
         oem_approvals=["GM dexos1 Gen2"],
+        package_volume_liters=Decimal("4.00"),
+        package_volume_label="4 Liters",
+        claimed_service_interval_km=5000,
     )
     assert serialize_oil_catalog([oil]) == [
         {
@@ -334,16 +404,55 @@ def test_catalog_serialization_has_only_contract_fields():
             "brand": "Behran",
             "name": "Super Rana Plus",
             "sae_viscosity": "5W-30",
-                "api_spec": "SN Plus",
-                "acea_specs": [],
-                "ilsac_spec": None,
-                "base_type": "Full Synthetic",
-                "oem_approvals": ["GM dexos1 Gen2"],
-                "package_volume_liters": None,
-                "package_volume_label": None,
-                "claimed_service_interval_km": None,
-            }
+            "api_spec": "SN Plus",
+            "acea_specs": [],
+            "ilsac_spec": "GF-6A",
+            "base_type": "Full Synthetic",
+            "oem_approvals": ["GM dexos1 Gen2"],
+            "package_volume_liters": "4.00",
+            "package_volume_label": "4 Liters",
+            "claimed_service_interval_km": 5000,
+        }
     ]
+    json.dumps(serialize_oil_catalog([oil]))
+
+
+def test_shared_prompt_has_rich_vehicle_and_complete_product_schema():
+    hilux = Vehicle(
+        id=1,
+        manufacturer="Toyota",
+        model="Hilux",
+        trim="2.7 Double Cab 4x4",
+        production_year_from=2024,
+        production_year_to=2026,
+        engine_displacement="2.7 L",
+        engine_type="Inline-4",
+        fuel_type="gasoline",
+        power_hp=134,
+        torque_nm=241,
+        transmission="5M/6A",
+        drivetrain="4WD",
+        body_type="Pickup",
+        body_style="Midsize Pickup",
+    )
+    prompt = build_vehicle_research_prompt(hilux)
+    for expected in (
+        "Engine type: Inline-4",
+        "Power: 134 hp",
+        "Torque: 241 Nm",
+        "Transmission: 5M/6A",
+        "Drivetrain: 4WD",
+        "Body type: Pickup",
+        "Body style: Midsize Pickup",
+    ):
+        assert expected in prompt
+    for field in (
+        "ilsac_spec",
+        "package_volume_liters",
+        "package_volume_label",
+        "claimed_service_interval_km",
+    ):
+        assert field in SYSTEM_PROMPT
 
 
 @pytest.mark.asyncio
@@ -425,7 +534,11 @@ async def test_catalog_ids_are_validated(ids, error):
         calls = adapter.client.client.aio.models.generate_content.await_args_list
         assert "COMPLETE CATALOG" not in calls[0].kwargs["contents"]
         assert "COMPLETE CATALOG" in calls[1].kwargs["contents"]
-        assert calls[1].kwargs["config"].response_schema is CatalogResearchResult
+        assert calls[1].kwargs["config"].response_schema is None
+        assert (
+            calls[1].kwargs["config"].response_json_schema
+            == _gemini_response_json_schema(CatalogResearchResult)
+        )
 
 
 def test_all_adapters_satisfy_runtime_protocol_and_factory_selection():
